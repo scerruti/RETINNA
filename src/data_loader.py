@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from datasets import load_dataset
 from pathlib import Path
 import json
+import h5py
+from huggingface_hub import hf_hub_download
 
 
 class CaBuArDataLoader:
@@ -15,15 +16,43 @@ class CaBuArDataLoader:
         self.stats = {}
 
     def load_dataset(self):
-        """Download and load the CaBuAr dataset from Hugging Face."""
-        print("Loading CaBuAr dataset from Hugging Face...")
-        self.dataset = load_dataset(
-            "DarthReca/california_burned_areas",
+        """Download and load CaBuAr dataset HDF5 files from Hugging Face."""
+        print("Loading CaBuAr dataset HDF5 files from Hugging Face...")
+
+        # Download HDF5 file from Hugging Face
+        hf_filename = hf_hub_download(
+            repo_id="DarthReca/california_burned_areas",
+            filename="post-fire.h5",
             cache_dir=str(self.cache_dir),
-            trust_remote_code=True
+            repo_type="dataset"
         )
-        print(f"Dataset loaded: {self.dataset}")
+
+        # Load HDF5 file
+        self.h5_file = h5py.File(hf_filename, 'r')
+        self.dataset = self._parse_hdf5()
+        print(f"Dataset loaded: {len(self.dataset)} samples")
         return self.dataset
+
+    def _parse_hdf5(self):
+        """Parse HDF5 file into list of samples."""
+        samples = []
+
+        for wildfire_id in self.h5_file.keys():
+            group = self.h5_file[wildfire_id]
+
+            # Extract pre-fire, post-fire, and mask
+            pre_fire = np.array(group['pre_fire'])
+            post_fire = np.array(group['post_fire'])
+            mask = np.array(group['mask'])
+
+            samples.append({
+                'wildfire_id': wildfire_id,
+                'pre_fire': pre_fire,
+                'post_fire': post_fire,
+                'mask': mask
+            })
+
+        return samples
 
     def compute_stats(self):
         """Compute basic statistics about the dataset."""
@@ -32,14 +61,14 @@ class CaBuArDataLoader:
 
         print("\nComputing dataset statistics...")
 
-        total_samples = len(self.dataset["train"])
+        total_samples = len(self.dataset)
         self.stats["total_samples"] = total_samples
 
         # Analyze class balance
         burned_pixels = 0
         unburned_pixels = 0
 
-        for sample in self.dataset["train"]:
+        for sample in self.dataset:
             mask = np.array(sample["mask"])
             burned_pixels += np.sum(mask > 0)
             unburned_pixels += np.sum(mask == 0)
@@ -78,25 +107,33 @@ class CaBuArDataLoader:
 
         print(f"Visualizing {num_samples} sample tiles...")
 
-        for idx in range(min(num_samples, len(self.dataset["train"]))):
-            sample = self.dataset["train"][idx]
+        for idx in range(min(num_samples, len(self.dataset))):
+            sample = self.dataset[idx]
 
-            # Extract images and mask
+            # Extract images and mask (use first 3 channels for RGB visualization)
             pre_fire = np.array(sample["pre_fire"])
             post_fire = np.array(sample["post_fire"])
             mask = np.array(sample["mask"])
+
+            # Use first 3 channels if multi-channel
+            if pre_fire.ndim == 3 and pre_fire.shape[0] > 3:
+                pre_fire_viz = pre_fire[:3].transpose(1, 2, 0)
+                post_fire_viz = post_fire[:3].transpose(1, 2, 0)
+            else:
+                pre_fire_viz = pre_fire if pre_fire.ndim == 2 else pre_fire[0]
+                post_fire_viz = post_fire if post_fire.ndim == 2 else post_fire[0]
 
             # Create visualization
             fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
             # Pre-fire image (normalize to 0-1 for visualization)
-            pre_fire_normalized = (pre_fire - pre_fire.min()) / (pre_fire.max() - pre_fire.min())
+            pre_fire_normalized = (pre_fire_viz - np.min(pre_fire_viz)) / (np.max(pre_fire_viz) - np.min(pre_fire_viz) + 1e-8)
             axes[0].imshow(pre_fire_normalized)
             axes[0].set_title("Pre-Fire Image")
             axes[0].axis("off")
 
             # Post-fire image
-            post_fire_normalized = (post_fire - post_fire.min()) / (post_fire.max() - post_fire.min())
+            post_fire_normalized = (post_fire_viz - np.min(post_fire_viz)) / (np.max(post_fire_viz) - np.min(post_fire_viz) + 1e-8)
             axes[1].imshow(post_fire_normalized)
             axes[1].set_title("Post-Fire Image")
             axes[1].axis("off")
