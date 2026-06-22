@@ -9,4 +9,5 @@ tqdm>=4.60.0
 h5py>=3.0.0
 hdf5plugin>=4.0.0
 huggingface-hub>=0.16.0
+jupyter>=1.0.0
 pytest>=7.0.0
