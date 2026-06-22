@@ -19,7 +19,8 @@ class CaBuArDataLoader:
         print("Loading CaBuAr dataset from Hugging Face...")
         self.dataset = load_dataset(
             "DarthReca/california_burned_areas",
-            cache_dir=str(self.cache_dir)
+            cache_dir=str(self.cache_dir),
+            trust_remote_code=True
         )
         print(f"Dataset loaded: {self.dataset}")
         return self.dataset
