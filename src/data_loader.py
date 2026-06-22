@@ -54,8 +54,15 @@ class CaBuArDataLoader:
         """Parse single HDF5 file into list of samples."""
         samples = []
 
-        for wildfire_id in h5_file.keys():
-            group = h5_file[wildfire_id]
+        # HDF5 structure: h5_file -> fold ('0' for training) -> wildfire_id -> data
+        fold_key = '0'  # Use training fold
+        if fold_key not in h5_file:
+            raise ValueError(f"Expected fold '{fold_key}' not found in HDF5 file. Available folds: {list(h5_file.keys())}")
+
+        fold = h5_file[fold_key]
+
+        for wildfire_id in fold.keys():
+            group = fold[wildfire_id]
 
             # Extract pre-fire, post-fire, and mask
             pre_fire = np.array(group['pre_fire'])
