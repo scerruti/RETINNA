@@ -15,30 +15,42 @@ class CaBuArDataLoader:
         self.dataset = None
         self.stats = {}
 
-    def load_dataset(self):
+    def load_dataset(self, num_files: int = 5):
         """Download and load CaBuAr dataset HDF5 files from Hugging Face."""
-        print("Loading CaBuAr dataset HDF5 files from Hugging Face...")
+        print(f"Loading CaBuAr dataset ({num_files} HDF5 files) from Hugging Face...")
 
-        # Download HDF5 file from Hugging Face
-        hf_filename = hf_hub_download(
-            repo_id="DarthReca/california_burned_areas",
-            filename="post-fire.h5",
-            cache_dir=str(self.cache_dir),
-            repo_type="dataset"
-        )
+        self.dataset = []
 
-        # Load HDF5 file
-        self.h5_file = h5py.File(hf_filename, 'r')
-        self.dataset = self._parse_hdf5()
-        print(f"Dataset loaded: {len(self.dataset)} samples")
+        # Download and load individual HDF5 files
+        for i in range(1, num_files + 1):
+            filename = f"normalized/complete/california_{i}.hdf5"
+            try:
+                print(f"  Loading {filename}...")
+                hf_filename = hf_hub_download(
+                    repo_id="DarthReca/california_burned_areas",
+                    filename=filename,
+                    cache_dir=str(self.cache_dir),
+                    repo_type="dataset"
+                )
+
+                # Load and parse HDF5 file
+                with h5py.File(hf_filename, 'r') as h5_file:
+                    samples = self._parse_hdf5_file(h5_file)
+                    self.dataset.extend(samples)
+                    print(f"    Loaded {len(samples)} samples")
+            except Exception as e:
+                print(f"  Error loading {filename}: {e}")
+                break
+
+        print(f"Total dataset size: {len(self.dataset)} samples")
         return self.dataset
 
-    def _parse_hdf5(self):
-        """Parse HDF5 file into list of samples."""
+    def _parse_hdf5_file(self, h5_file):
+        """Parse single HDF5 file into list of samples."""
         samples = []
 
-        for wildfire_id in self.h5_file.keys():
-            group = self.h5_file[wildfire_id]
+        for wildfire_id in h5_file.keys():
+            group = h5_file[wildfire_id]
 
             # Extract pre-fire, post-fire, and mask
             pre_fire = np.array(group['pre_fire'])
