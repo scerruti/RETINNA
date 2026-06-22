@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import json
 import h5py
-from huggingface_hub import hf_hub_download
+import urllib.request
+import os
 
 
 class CaBuArDataLoader:
@@ -16,25 +17,29 @@ class CaBuArDataLoader:
         self.stats = {}
 
     def load_dataset(self, num_files: int = 5):
-        """Download and load CaBuAr dataset HDF5 files from Hugging Face."""
+        """Download and load CaBuAr dataset HDF5 files from Hugging Face (raw URLs)."""
         print(f"Loading CaBuAr dataset ({num_files} HDF5 files) from Hugging Face...")
 
         self.dataset = []
+        base_url = "https://huggingface.co/datasets/DarthReca/california_burned_areas/resolve/main/normalized/complete/"
 
         # Download and load individual HDF5 files
         for i in range(1, num_files + 1):
-            filename = f"normalized/complete/california_{i}.hdf5"
+            filename = f"california_{i}.hdf5"
             try:
-                print(f"  Loading {filename}...")
-                hf_filename = hf_hub_download(
-                    repo_id="DarthReca/california_burned_areas",
-                    filename=filename,
-                    cache_dir=str(self.cache_dir),
-                    repo_type="dataset"
-                )
+                print(f"  Downloading {filename}...")
+                url = base_url + filename
+                cache_path = self.cache_dir / filename
+
+                # Download file if not already cached
+                if not cache_path.exists():
+                    urllib.request.urlretrieve(url, cache_path)
+                    print(f"    Downloaded to {cache_path}")
+                else:
+                    print(f"    Using cached {cache_path}")
 
                 # Load and parse HDF5 file
-                with h5py.File(hf_filename, 'r') as h5_file:
+                with h5py.File(cache_path, 'r') as h5_file:
                     samples = self._parse_hdf5_file(h5_file)
                     self.dataset.extend(samples)
                     print(f"    Loaded {len(samples)} samples")
