@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/scerruti/RETINNA/wiki
+    about: Check the project wiki for guidance
+  - name: Project Board
+    url: https://github.com/scerruti/RETINNA/projects
+    about: View the sprint board
