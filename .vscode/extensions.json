@@ -2,13 +2,6 @@
   "recommendations": [
     "ms-python.python",
     "ms-python.vscode-pylance",
-    "ms-python.debugpy",
-    "ms-toolsai.jupyter",
-    "charliermarsh.ruff",
-    "ms-vscode.makefile-tools",
-    "eamodio.gitlens",
-    "GitHub.github-vscode-theme",
-    "ms-vscode-remote.remote-ssh",
-    "ms-vscode-remote.vscode-remote-extensionpack"
+    "ms-toolsai.jupyter"
   ]
 }
