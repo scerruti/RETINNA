@@ -1,0 +1,52 @@
+# Sprint Management Labels
+- name: sprint
+  color: "0075ca"
+  description: "Daily sprint issue"
+
+- name: task
+  color: "a2eeef"
+  description: "Individual task for sprint"
+
+- name: day-1
+  color: "ffd700"
+  description: "Sprint Day 1"
+
+- name: day-2
+  color: "ffed4e"
+  description: "Sprint Day 2"
+
+- name: day-3
+  color: "fff44f"
+  description: "Sprint Day 3"
+
+- name: day-4
+  color: "ffdc5d"
+  description: "Sprint Day 4"
+
+- name: day-5
+  color: "ffc54f"
+  description: "Sprint Day 5"
+
+- name: blocked
+  color: "d73a49"
+  description: "Task is blocked"
+
+- name: in-progress
+  color: "28a745"
+  description: "Currently being worked on"
+
+- name: completed
+  color: "6f42c1"
+  description: "Task completed"
+
+- name: high-priority
+  color: "ff6b6b"
+  description: "Urgent - handle first"
+
+- name: bug
+  color: "ee5a6f"
+  description: "Bug found during sprint"
+
+- name: enhancement
+  color: "84b6eb"
+  description: "Improvement or feature enhancement"
