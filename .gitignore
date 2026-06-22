@@ -142,3 +142,6 @@ results/
 *.tif
 *.tiff
 *.geotiff
+
+# Starter Code from Gary
+PA3/
