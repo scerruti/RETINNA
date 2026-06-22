@@ -91,8 +91,15 @@ class CaBuArDataLoader:
             unburned_pixels += np.sum(mask == 0)
 
         total_pixels = burned_pixels + unburned_pixels
-        burned_percent = (burned_pixels / total_pixels) * 100
-        unburned_percent = (unburned_pixels / total_pixels) * 100
+
+        # Guard against divide by zero
+        if total_pixels == 0:
+            burned_percent = 0.0
+            unburned_percent = 0.0
+            print("Warning: No pixels found in masks. Check data integrity.")
+        else:
+            burned_percent = (burned_pixels / total_pixels) * 100
+            unburned_percent = (unburned_pixels / total_pixels) * 100
 
         self.stats["total_pixels"] = int(total_pixels)
         self.stats["burned_pixels"] = int(burned_pixels)
