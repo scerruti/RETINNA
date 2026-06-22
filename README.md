@@ -13,9 +13,9 @@ Unlike binary classification ("Is there a fire?"), this semantic segmentation ap
 
 ## Dataset
 
-This project leverages the **CaBuAr (California Burned Areas)** dataset, accessible via [Hugging Face](https://huggingface.co/datasets/DarthReca/california_burned_areas).
+This project leverages the **CaBuAr (California Burned Areas)** dataset from [Hugging Face](https://huggingface.co/datasets/DarthReca/california_burned_areas), loaded via the **TorchGeo** library on Colab.
 
-**Note**: See [Dataset Access Documentation](docs/CABUАР_DATASET_ACCESS.md) for details on dataset loading, HDF5 plugin requirements, and troubleshooting.
+**✅ Dataset Access**: Fully working on Google Colab. See [Dataset Access Documentation](docs/CABUАР_DATASET_ACCESS.md) for implementation details and troubleshooting.
 
 ### Input Data
 - **Bi-temporal satellite imagery**: Pre-fire and post-fire passes captured by Sentinel-2
