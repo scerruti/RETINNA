@@ -4,7 +4,6 @@ from pathlib import Path
 import json
 import h5py
 import urllib.request
-import os
 
 
 class CaBuArDataLoader:
