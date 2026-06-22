@@ -139,9 +139,16 @@ models/
 checkpoints/
 outputs/
 results/
+visualizations/
 *.tif
 *.tiff
 *.geotiff
+
+# Generated outputs
+*_stats.json
+
+# Temporary/stray notebooks
+Untitled.ipynb
 
 # Starter Code from Gary
 PA3/
