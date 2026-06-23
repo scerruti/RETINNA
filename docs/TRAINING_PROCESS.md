@@ -66,38 +66,6 @@ targets:     [B, 1, H, W]  # Binary mask (0=unburned, 1=burned)
 - Equally weight both (0.5 each by default)
 - Empirically validated on class imbalance problems
 
-### Epsilon (ε) Convention
-
-The `1e-8` constant (epsilon) is standard practice in deep learning:
-
-| Context | Usage |
-|---------|-------|
-| Papers | Written as "where ε = 1e-8" in loss definition |
-| Code | Usually hardcoded as `1e-8`, `1e-10`, or similar |
-| Variable naming | Sometimes `eps`, `epsilon`, or inline `1e-8` |
-
-**Why inline?**
-- Small constant, not a hyperparameter to tune
-- Prevents division by zero numerically
-- Value (1e-8 to 1e-10) is rarely changed
-- Makes loss formulas more readable than named constants
-
-**Alternative approaches:**
-```python
-# Option A: Inline (current - most common)
-dice_loss = 1 - (2 * intersection + 1e-8) / (union + 1e-8)
-
-# Option B: Named constant (more explicit)
-EPS = 1e-8
-dice_loss = 1 - (2 * intersection + EPS) / (union + EPS)
-
-# Option C: Parametrized (rarely needed)
-def dice_loss(pred, target, eps=1e-8):
-    ...
-```
-
-Our code uses inline since it's a numerical stability detail, not a hyperparameter.
-
 ## Training Loop
 
 ### Command Line Usage
