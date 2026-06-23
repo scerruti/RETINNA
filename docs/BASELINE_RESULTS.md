@@ -12,9 +12,11 @@
 | **Epochs** | 20 |
 | **Device** | T4 GPU (Colab Pro) |
 | **Training Time** | ~20 minutes |
-| **Best Validation IoU** | 0.47 |
-| **Final Train Loss** | 0.24 |
-| **Final Val Loss** | 0.31 |
+| **Best Validation IoU** | 0.5201 |
+| **Best Epoch** | 13 |
+| **Final Train Loss** | 0.1988 |
+| **Final Val Loss** | 0.3235 |
+| **Final Val IoU** | 0.4144 |
 | **Batch Size** | 4 |
 | **Learning Rate** | 0.0005 |
 | **Optimizer** | Adam |
@@ -24,43 +26,49 @@
 
 ### Loss Curve
 
-![Loss Curves: Train vs Validation](baseline_loss_curves.png)
+![Loss Curves: Train vs Validation](training_runs/baseline_24ch_epoch20/loss_curves.png)
 
-**Train Loss** (blue): Decreases smoothly from 0.56 → 0.24
-- Indicates model is learning consistently
+**Train Loss** (blue): Decreases monotonically from 0.56 → 0.20
+- Indicates consistent model learning
 - No divergence or NaN values
+- Steady improvement across all epochs
 
-**Val Loss** (orange): Decreases from 0.50 → 0.31
+**Val Loss** (orange): Decreases overall from 0.57 → 0.32
 - More volatile than train loss (expected for validation set)
 - General downward trend indicates generalization
-- Some spikes (epochs 5, 17) suggest occasional difficult batches
+- Some spikes (epochs 8, 17) during mid-training
+- Overall settling to reasonable level by epoch 20
 
 ### IoU Curve
 
-![Validation IoU for Burned Class](baseline_iou_curves.png)
+![Validation IoU for Burned Class](training_runs/baseline_24ch_epoch20/iou_curves.png)
 
-**Validation IoU** (green): Increases from 0.38 → 0.47
-- Starting point (0.38) is reasonable for random initialization
-- Best performance: **0.47 at epoch 13**
+**Validation IoU** (green): Increases from 0.42 → peak 0.52 (epoch 13) → 0.41 (epoch 20)
+- Starting point (0.42) is reasonable for random initialization
+- Best performance: **0.5201 at epoch 13** (checkpoint saved)
 - Validation IoU metric for burned class only (binary segmentation)
 - Noisy trajectory is normal (class is sparse, ~10% of pixels)
+- Mid-training spike (epoch 9, 13, 18) suggests good feature learning
+- Later epochs show slight overfitting trend, justifying early stopping at epoch 13
 
 ## Model Performance
 
 ### What These Metrics Mean
 
-**IoU (Intersection over Union) = 0.47:**
-- For every pixel predicted as burned, ~47% overlap with ground truth on average
-- Room for improvement but solid baseline
+**IoU (Intersection over Union) = 0.5201 (best):**
+- Best achieved at epoch 13
+- For every pixel predicted as burned, ~52% overlap with ground truth on average
+- Room for improvement but solid baseline for 24-channel model
 - Typical ranges:
   - 0.30-0.40: Basic detection working
-  - 0.40-0.60: Good baseline (we are here)
+  - 0.40-0.60: Good baseline (we are here) ✓
   - 0.60-0.75: Well-tuned model
   - 0.75+: Excellent performance
 
 **Loss Values:**
 - BCE+Dice loss combines two complementary objectives
-- Lower is better; 0.31 final validation loss is reasonable
+- Final validation loss: 0.3235 (epoch 20)
+- Best validation loss: 0.2717 (epoch 13, when IoU peaked)
 - Hybrid loss helps with class imbalance (90% unburned, 10% burned)
 
 ### Training Dynamics
@@ -82,10 +90,12 @@
 
 ## Checkpoint Information
 
-**Best Model**: `checkpoints_notebook/best_model.pth`
+**Best Model**: `/content/drive/MyDrive/RETINNA_checkpoints/best_model.pth`
 - Saved at epoch 13
-- Validation IoU: 0.47
+- Validation IoU: 0.5201
+- Validation Loss: 0.2717
 - Model state dict: 31.1M parameters
+- Backed up to Google Drive for persistence across Colab sessions
 - Ready for inference on test set
 
 ## Next Steps
@@ -112,7 +122,7 @@
 
 ### Long Term (Advanced)
 - **Multi-class burn severity**: Extend from binary to severity levels
-- **Cross-satellite transfer**: Test on Landsat 8 imagery
+- **Cross-satellite transfer**: Test on NAIP imagery (higher resolution)
 - **Production deployment**: Export model, create inference API
 
 ## Comparison to PA3
@@ -124,15 +134,17 @@
 | **Model** | FCN (fully convolutional) | U-Net (encoder-decoder) |
 | **Key Metric** | Accuracy per class | IoU for burned class |
 | **Class Balance** | Balanced classes | Imbalanced (90% unburned) |
-| **Baseline IoU** | ~0.50 | **0.47** (comparable!) |
+| **Baseline IoU** | ~0.50 | **0.5201** (improved!) |
 
 **Insight**: Similar IoU performance despite different domains (scene vs. burn detection) validates our U-Net architecture choice and loss function design.
 
 ## Files Generated
 
-- `checkpoints_notebook/best_model.pth` — Trained model weights
-- `checkpoints_notebook/config.json` — Training configuration
-- `docs/baseline_training_curves.png` — This document's loss/IoU curves
+- `/content/drive/MyDrive/RETINNA_checkpoints/best_model.pth` — Trained model weights (epoch 13)
+- `docs/training_runs/baseline_24ch_epoch20/metrics.json` — Training metrics summary
+- `docs/training_runs/baseline_24ch_epoch20/loss_curves.png` — Loss curves (train vs validation)
+- `docs/training_runs/baseline_24ch_epoch20/iou_curves.png` — IoU curves (validation only)
+- `docs/training_runs/baseline_24ch_epoch20/training.log` — Full training log with batch losses
 - `docs/BASELINE_RESULTS.md` — This document
 
 ## Reproducibility
@@ -146,7 +158,7 @@ To reproduce this baseline:
 3. Save output as docs/training_curves.png
 ```
 
-**Configuration preserved in**: `checkpoints_notebook/config.json`
+**Configuration**: See `docs/training_runs/baseline_24ch_epoch20/metrics.json` for training parameters.
 
 ---
 

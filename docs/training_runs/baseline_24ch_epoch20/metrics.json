@@ -1,0 +1,18 @@
+{
+  "model": "U-Net (24-channel Sentinel-2)",
+  "dataset": "CaBuAr",
+  "epochs": 20,
+  "batch_size": 4,
+  "learning_rate": 0.0005,
+  "optimizer": "Adam",
+  "loss_function": "BCE+Dice",
+  "device": "T4 GPU",
+  "best_val_iou": 0.5201,
+  "best_epoch": 13,
+  "final_train_loss": 0.1988,
+  "final_val_loss": 0.3235,
+  "final_val_iou": 0.4144,
+  "checkpoint_path": "/content/drive/MyDrive/RETINNA_checkpoints/best_model.pth",
+  "training_time_minutes": 20,
+  "notes": "Best model saved at epoch 13 with IoU 0.5201. Validation IoU shows volatility typical of sparse class (burned pixels ~10% of image). Training loss shows steady improvement."
+}
