@@ -47,8 +47,8 @@ def identify_corrupted_tiles(dataset, num_samples=None):
         if image.shape != (2, 12, 512, 512) or mask.shape != (1, 512, 512):
             flags.append(f"wrong_shape_img={image.shape}_mask={mask.shape}")
 
-        # Check for extreme value ranges (outside typical Sentinel-2)
-        if np.any(image < 0) or np.any(image > 10000):
+        # Check for extreme value ranges (Sentinel-2 is 16-bit: 0-65535)
+        if np.any(image < 0) or np.any(image > 65535):
             flags.append(f"extreme_values_range=[{image.min()},{image.max()}]")
 
         if flags:
@@ -131,9 +131,9 @@ def create_splits(dataset, test_indices, val_ratio=0.15, train_ratio=0.70):
     test_indices_final = clean_indices[n_train + n_val:]
 
     return {
-        'train': sorted(train_indices.tolist()),
-        'val': sorted(val_indices.tolist()),
-        'test': sorted(test_indices_final.tolist()),
+        'train': sorted(train_indices),
+        'val': sorted(val_indices),
+        'test': sorted(test_indices_final),
         'split_info': {
             'train_count': len(train_indices),
             'val_count': len(val_indices),
@@ -167,7 +167,8 @@ def clean_dataset(dataset_root='/tmp/cabuaur', output_path='data/clean_splits.js
     print("="*70)
 
     print(f"\nLoading CaBuAr dataset from {dataset_root}...")
-    dataset = CaBuAr(root=dataset_root, download=True, split='test')
+    # Load full dataset (CaBuAr test split is small; use full dataset for cleaning)
+    dataset = CaBuAr(root=dataset_root, download=True, split='all')
     print(f"✓ Loaded {len(dataset)} total samples")
 
     # Check all samples for corruption
