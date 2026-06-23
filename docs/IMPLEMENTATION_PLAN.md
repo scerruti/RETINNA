@@ -1,9 +1,22 @@
 # Implementation Plan: Wildfire Burn Scar Segmentation
 
 **Status**: Active  
-**Timeline**: 1 week (5 days, half-day commitment = ~20 hours)  
-**Primary Goal**: Implement Option A (binary burn detection)  
-**Stretch Goal**: Implement Option B (multi-class pre-training) if time allows
+**Timeline**: 1 week (5 days, half-day commitment = ~20 hours) + beyond  
+**Primary Goal**: Implement Option A (binary burn detection on Sentinel-2)  
+**Stretch Goal 1**: Option B (multi-class pre-training on Sentinel-2) if time allows  
+**Stretch Goal 2**: Option C (cross-satellite transfer to Landsat 8) if time/interest allows
+
+---
+
+## Quick Summary: Three Options
+
+| Option | What | Time | Difficulty | Value |
+|--------|------|------|------------|-------|
+| **A** (Primary) | Binary burn detection on Sentinel-2 | 9-15h | Medium | Core skill: U-Net + training |
+| **B** (Stretch) | Multi-class pre-training → fine-tune | +5-9h | Medium-High | Improvement: Better burn detection |
+| **C** (Advanced) | Transfer to Landsat 8 (different satellite) | +5-7h | Medium-High | Generalization: Satellite-agnostic model |
+
+**Tip**: A is required. After A works, you'll see what Gary wants. B and C are independent paths (not sequential).
 
 ---
 
@@ -94,6 +107,177 @@ Build a custom U-Net for binary segmentation (unburned vs. burned) on CaBuAr dat
 | Documentation & results | 1-2h | |
 | **Total Option A** | **9-15h** | |
 | Buffer | ~5-11h | |
+
+---
+
+## Option C: Cross-Satellite Transfer Learning to Landsat 8 (Advanced Stretch Goal)
+
+**IF both Option A works well AND you want to demonstrate satellite generalization**, implement cross-satellite transfer.
+
+**Approach:**
+Take your trained Sentinel-2 burn detection model and transfer it to Landsat 8 imagery, showing that burn detection generalizes across different satellites.
+
+**Output**: Burn detection model works on both Sentinel-2 (10m) and Landsat 8 (30m) imagery
+
+### Why This Matters
+
+- Demonstrates practical satellite data knowledge
+- Shows transfer learning across domains (different satellites, different resolutions)
+- Landsat has advantages: longer time series, global coverage, free access
+- Real-world applicability: many regions only have Landsat data
+- Unlike Option B (same satellite, different approach), Option C shows **generalization** (key ML concept)
+
+### Deliverables
+
+#### 1. `src/landsat_loader.py` — Landsat 8 Dataset Pipeline
+- Load Landsat 8 data from Google Earth Engine or USGS
+- Map pre/post-fire Landsat image pairs
+- Handle band selection (Landsat has 11 bands, need NIR + Red for NDVI)
+- Normalize to Sentinel-2 scale (for transfer) OR use Landsat-specific normalization
+- **Time**: 2-3 hours (more complex: different data source, different format)
+- **Challenge**: Finding Landsat pairs with known burn boundaries
+  - Option A: Use Sentinel-2 predictions as pseudo-labels for Landsat
+  - Option B: Find USGS/NASA burn maps that cover Landsat footprints
+
+#### 2. `transfer_to_landsat.py` — Transfer Learning Script
+- Load Sentinel-2 trained model (from Option A)
+- Adapt for Landsat input (Landsat has 11 bands, not 12)
+  - Option 1: Use same model, ignore 1 band
+  - Option 2: Retrain input layer for 11 channels
+- Fine-tune on Landsat data with frozen encoder, trainable decoder
+- Monitor burn IoU on Landsat validation set
+- **Time**: 1-2 hours
+- **Key question**: Do spectral signatures transfer between satellites?
+
+#### 3. `evaluate_landsat.py` — Cross-Satellite Evaluation
+- Run Sentinel-2 model predictions on Landsat test data (if compatible)
+- Generate burn maps at 30m resolution (vs Sentinel-2's 10m)
+- Compare: Sentinel-2 results vs Landsat results on same fires
+- Visualize: Side-by-side comparison at different resolutions
+- **Time**: 1 hour
+
+#### 4. Results & Documentation
+- Comparison report: "Burn Detection Across Sentinel-2 and Landsat 8"
+- Visualizations: Burn maps at 10m vs 30m resolution
+- Discussion: Resolution trade-offs, generalization insights
+- **Time**: 1 hour
+
+### Time Budget (Option C)
+
+| Task | Time |
+|------|------|
+| Landsat data loader | 2-3h |
+| Transfer learning script | 1-2h |
+| Cross-satellite evaluation | 1h |
+| Results & documentation | 1h |
+| **Total Option C** | **5-7h** |
+
+**GPU training time** (parallel):
+- Fine-tuning on Landsat: 30min-2h
+
+### Technical Challenges (Option C)
+
+1. **Data Alignment**
+   - Sentinel-2 and Landsat footprints differ
+   - Different spatial resolution (10m vs 30m)
+   - May need to regrid or interpolate
+   - **Solution**: Use geospatial tools (rasterio, GDAL) or Google Earth Engine
+
+2. **Spectral Differences**
+   - Different sensors → different spectral responses
+   - Band naming: Sentinel-2 B8 ≠ Landsat 8 B5 (both NIR but different wavelengths)
+   - May need spectral harmonization
+   - **Solution**: Use published Sentinel-2 ↔ Landsat 8 band mappings
+
+3. **Label Scarcity**
+   - Landsat doesn't have pre-labeled burn data like CaBuAr
+   - Options:
+     - Use Sentinel-2 model predictions as pseudo-labels (transfer labels)
+     - Find USGS/NASA Monitoring Trends in Burn Severity (MTBS) data
+     - Manually label a few test samples
+   - **Most practical**: Use Sentinel-2 predictions as weak labels
+
+4. **Resolution Trade-off**
+   - Landsat 30m is coarser → burn boundaries less precise
+   - Expect lower IoU than Sentinel-2
+   - Is this acceptable? Depends on use case.
+
+### Approach: Step-by-Step
+
+```
+Step 1: Acquire Landsat Data
+├─ Use Google Earth Engine or USGS EROS
+├─ Find Landsat image pairs (pre/post fire)
+├─ For best results: overlay with known burn boundaries (MTBS, CalFire)
+└─ Time: 1-2h
+
+Step 2: Generate Labels for Landsat
+├─ Option A: Run Sentinel-2 model on Landsat
+│  └─ Use predicted burn maps as pseudo-labels
+├─ Option B: Use published burn maps (MTBS)
+│  └─ More authoritative, but may not align with Landsat footprints
+└─ Time: 1h
+
+Step 3: Transfer Learning
+├─ Load Sentinel-2 model weights
+├─ Adapt input layer for Landsat channels (11 vs 12)
+├─ Freeze encoder, train decoder on Landsat data
+├─ Monitor: Does burn IoU improve or degrade?
+└─ Time: 2h (implementation + training)
+
+Step 4: Evaluate & Compare
+├─ Run both models on overlapping Landsat/Sentinel-2 areas
+├─ Compare: Sentinel-2 (10m) vs Landsat (30m) burn detection
+├─ Visualize at different scales
+├─ Document trade-offs
+└─ Time: 1-2h
+```
+
+### Success Criteria (Option C)
+
+**Minimum (just works)**:
+- ✅ Landsat data loads and model runs forward pass
+- ✅ Transfer learning script trains without errors
+- ✅ Can generate burn maps on Landsat data
+- ✅ Visualizations show reasonable results
+
+**Good (shows value)**:
+- ✅ Landsat burn IoU > 0.3 (acceptable given 30m resolution)
+- ✅ Model generalizes without catastrophic forgetting
+- ✅ Comparison shows trade-offs clearly (resolution vs availability)
+- ✅ Documentation explains when to use Landsat vs Sentinel-2
+
+**Excellent (publishable quality)**:
+- ✅ Landsat burn IoU competitive with Sentinel-2 (within 10%)
+- ✅ Spectral harmonization successful
+- ✅ Successfully transfer labels from Sentinel-2 to Landsat
+- ✅ Discussion of practical implications (which satellite for which use case)
+
+### When to Start Option C
+
+**Prerequisites:**
+- [ ] Option A is fully working (trained model, inference tested)
+- [ ] You understand Sentinel-2 results well
+- [ ] You have > 5-7 hours remaining
+- [ ] You're comfortable with geospatial data tools (rasterio, GDAL, or Google Earth Engine)
+
+**If any prerequisite fails**, skip Option C. Not required, only if time/interest.
+
+### Option C Independence
+
+**Important**: Option C is **independent of Option B**
+- Can do A → C (without B's multi-class pre-training)
+- C tests **generalization across satellites**
+- B tests **improvement via multi-task learning**
+- Different experiments, different value propositions
+
+**Decision tree:**
+```
+Complete Option A ✅
+├─ Have time? → Try Option B (improve Sentinel-2)
+├─ Have time? → Try Option C (generalize to Landsat)
+└─ Have time? → Try both B and C (but likely too much)
+```
 
 ---
 
