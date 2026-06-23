@@ -110,6 +110,56 @@ Build a custom U-Net for binary segmentation (unburned vs. burned) on CaBuAr dat
 
 ---
 
+## Option B: Multi-Class Pre-Training (Stretch Goal)
+
+**IF Option A completes with time to spare**, use multi-class learning for improved feature representations.
+
+**Approach:**
+Train a 4-class model (unburned, low-burn, moderate-burn, high-burn) on Sentinel-2, then fine-tune to binary. This transfer learning improves the learned representations compared to training binary directly.
+
+**Output**: 4-class burn severity model (optionally fine-tuned to binary)
+
+### Rationale
+
+- Pre-training on related task (multi-class) can improve feature learning
+- Demonstrates transfer learning within same dataset
+- Prepares model for potential future severity assessment use cases
+- **Time**: +5-9 hours (after Option A)
+
+### Key Difference from Option A
+
+| Aspect | Option A (Binary) | Option B (Multi-Class) |
+|--------|-------------------|------------------------|
+| Classes | 2 (unburned, burned) | 4 (unburned, low, moderate, high) |
+| Labels | From CaBuAr masks | Derived from burn area %, intensity metrics |
+| Feature engineering | Minimal (raw bands) | More intensive (NDVI, NBR, spectral indices) |
+| Architecture | Simple 2-class head | 4-class output head |
+| Fine-tuning | Not needed | Fine-tune to binary for task comparison |
+| Timeline | Primary sprint | If Option A finishes early |
+
+### Deliverables
+
+1. **Issue #7: Feature Engineering** — Compute spectral indices (NDVI, NBR, GNDVI) for severity classification
+2. **Issue #23: Multi-Class Labels** — Define burn severity tiers from CaBuAr burn area percentages
+3. **Issue #24: Multi-Class Model** — Extend U-Net for 4-class output with appropriate loss
+4. **Issue #25: Multi-Class Training** — Train and evaluate on 4 classes
+5. **Issue #26: Transfer Learning Validation** — Fine-tune to binary, compare against Option A
+
+### Time Budget (Option B)
+
+| Task | Time |
+|------|------|
+| Feature engineering | 1-2h |
+| Multi-class label prep | 1h |
+| Model adaptation | 1h |
+| Training & evaluation | 2-3h |
+| Fine-tuning & comparison | 1-2h |
+| **Total Option B** | **5-9h** |
+
+**Status**: [Issue #21 - Option B Sprint](https://github.com/scerruti/RETINNA/issues/21)
+
+---
+
 ## Option C: Cross-Satellite Transfer Learning to Landsat 8 (Advanced Stretch Goal)
 
 **IF both Option A works well AND you want to demonstrate satellite generalization**, implement cross-satellite transfer.
