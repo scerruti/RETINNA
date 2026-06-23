@@ -11,16 +11,17 @@ Investigating cross-satellite transfer learning: train burn detection on Sentine
 ### The Challenge
 - **Sentinel-2**: 10m resolution, 24 spectral bands, global coverage
 - **NAIP**: 1m resolution, 4 bands (RGB + NIR), US-only, higher detail
-- **Goal**: Leverage Sentinel-2 pre-training to improve burn detection on high-resolution NAIP
+- **Goal**: Use Sentinel-2's multi-spectral richness to create accurate labels, then transfer simpler 4-channel model to high-resolution NAIP
 
 ### Why This Matters
-1. **Feature Transfer**: Model learns burn detection features on Sentinel-2 → applies to NAIP
-2. **Resolution Benefit**: NAIP's 1m resolution captures finer burn scar boundaries
-3. **Practical Application**: NAIP more readily available for US burn monitoring
-4. **Cross-satellite Validation**: Proves model learns generalizable features, not satellite-specific patterns
+1. **Label Quality**: 24-channel Sentinel-2 provides richer spectral information for accurately identifying/verifying burn scars
+2. **Reduced NAIP Labeling**: Transfer learned features from S2 to NAIP, requiring fewer manually labeled NAIP scenes
+3. **Resolution Benefit**: NAIP's 1m resolution captures finer burn scar boundaries than S2's 10m
+4. **Band Compatibility**: 4-channel RGB-IR structure matches NAIP's 4-band format for efficient transfer
+5. **Practical Application**: Minimize expensive NAIP labeling while gaining high-resolution burn detection
 
 ### Hypothesis
-> Pre-training on Sentinel-2 RGB-IR provides better feature initialization for NAIP burn detection than training NAIP from scratch.
+> Use 24-channel Sentinel-2's spectral richness to accurately define burn masks. Train 4-channel RGB-IR model on those verified labels. Transfer to NAIP (1m resolution) with minimal additional labeling, leveraging Sentinel-2-learned features while gaining boundary precision.
 
 ## Data Setup
 
@@ -51,29 +52,43 @@ Investigating cross-satellite transfer learning: train burn detection on Sentine
 ### Data Workflow
 
 ```
-CaBuAr HDF5 (Sentinel-2)
+Step 1: Create Accurate Labels Using 24-Channel S2
+CaBuAr HDF5 (Sentinel-2 24-channel)
 ├── 3098 train samples [2, 12, 512, 512]
 ├── 644 val samples [2, 12, 512, 512]
 └── 644 test samples [2, 12, 512, 512]
 
-Extract RGB-IR [B02, B03, B04, B08]
+Analyze with 24 spectral bands
+       ↓
+Verify/refine burn masks (ground truth)
+       ↓
+High-quality labels (easier with full spectral info)
+
+Step 2: Train on 4-Channel RGB-IR (Band-Compatible with NAIP)
+Extract RGB-IR [B02, B03, B04, B08] from S2
          ↓
 CaBuAr RGB-IR Dataset
 ├── 3098 train samples [2, 4, 512, 512]
 ├── 644 val samples [2, 4, 512, 512]
 └── 644 test samples [2, 4, 512, 512]
+(Using verified labels from 24-channel analysis)
 
-Train U-Net on RGB-IR
+Train U-Net on 4-channel RGB-IR
          ↓
 RGB-IR Model Checkpoint
-(pre-trained on Sentinel-2)
+(pre-trained on Sentinel-2, band-compatible with NAIP)
 
-Transfer to NAIP (future)
+Step 3: Transfer to NAIP (Future)
+NAIP imagery (1m resolution, 4 bands: R, G, B, NIR)
          ↓
-Fine-tune on NAIP burns
+Label subset of NAIP scenes (minimal effort)
+         ↓
+Fine-tune S2 RGB-IR model on NAIP
          ↓
 Compare vs NAIP-only baseline
 ```
+
+**Key insight**: 24-channel S2 is used for label creation/verification, not part of the transfer chain itself. The actual transfer uses 4-channel S2 → 4-channel NAIP (compatible band structure).
 
 ### Storage Plan
 
@@ -146,47 +161,55 @@ Compare vs NAIP-only baseline
 
 ## Implementation Plan
 
-### Immediate: Extract RGB-IR (This Week)
+### Phase 1: Extract RGB-IR from Sentinel-2 (This Week)
 **Task**: `extract_rgbir.ipynb` (Colab notebook)
+
+**What it does**:
+- Load CaBuAr Sentinel-2 with existing (verified) labels
+- Extract 4-channel RGB-IR [B02, B03, B04, B08]
+- Create new HDF5 dataset with 4-channel data
+- Preserve original train/val/test splits
 
 **Pseudocode**:
 ```python
-# Load CaBuAr
+# Load CaBuAr (existing labels already verified)
 cabuaur = CaBuAr(root=..., split='all', download=True)
 
 # Extract RGB-IR for each sample
 for sample in cabuaur:
-    image = sample['image']  # [2, 12, 512, 512]
+    image = sample['image']  # [2, 12, 512, 512] - 24 channels
+    mask = sample['mask']     # [2, 1, 512, 512] - verified labels
     
     # Select bands: B02(1), B03(2), B04(3), B08(7)
     rgbir = image[:, [1, 2, 3, 7], :, :]  # [2, 4, 512, 512]
     
-    # Store in new HDF5
-    save_to_hdf5(rgbir, sample_id, split)
-
-# Create new dataset structure
-create_rgbir_dataset_hdf5(...)
+    # Store with same labels in new HDF5
+    save_to_hdf5(rgbir, mask, sample_id, split)
 ```
 
-**Output**: `cabuaur_rgbir.hdf5` on Drive
+**Output**: `cabuaur_rgbir.hdf5` on Drive (same labels, 4 channels)
 
-### Follow-up: Train RGB-IR Model
+### Phase 2: Train 4-Channel RGB-IR Model
 **Task**: Modify `03_training.ipynb` to use RGB-IR dataset
 
 **Changes**:
-- Load RGB-IR instead of 24-channel
+- Load RGB-IR dataset instead of 24-channel
 - Update model: `UNet(in_channels=4, out_channels=2)`
-- Run full training loop (20 epochs)
-- Compare metrics to baseline
+- Use same training approach (20 epochs)
+- Compare metrics to 24-channel baseline
+- Save checkpoint for transfer learning
 
-### Later: NAIP Transfer Learning
+**Expected result**: Model trained on 4-channel S2, ready for NAIP transfer
+
+### Phase 3: NAIP Transfer Learning (Future)
 **Task**: Create `naip_transfer_learning.ipynb`
 
 **Workflow**:
-1. Load RGB-IR checkpoint
-2. Load NAIP data (to be determined)
-3. Fine-tune with low learning rate
-4. Evaluate transfer effectiveness
+1. Acquire labeled NAIP burn scar data
+2. Load RGB-IR checkpoint (from Phase 2)
+3. Fine-tune on NAIP with low learning rate
+4. Reduce earlier layers' learning rate (frozen) vs later layers
+5. Evaluate: Does S2 pre-training help vs NAIP-only training?
 
 ## Success Criteria
 
@@ -243,21 +266,24 @@ create_rgbir_dataset_hdf5(...)
 
 ### Best Case
 - RGB-IR extraction works smoothly
-- RGB-IR model achieves ~0.40 IoU (acceptable given channel reduction)
-- NAIP transfer learning shows 5-10% improvement over random init
-- Validates cross-satellite feature transfer
+- RGB-IR model achieves ~0.40 IoU (acceptable given 24→4 channel reduction)
+- NAIP transfer learning shows significant improvement vs NAIP-only baseline
+- Demonstrates value of S2 pre-training in reducing NAIP labeling effort
+- Validates cross-satellite feature transfer with band-compatible structure
 
 ### Realistic Case
 - RGB-IR extraction works, minor debugging needed
-- RGB-IR model achieves ~0.35 IoU (more significant channel impact)
-- NAIP transfer shows marginal improvement (2-3%)
-- Documents challenges in cross-satellite transfer
+- RGB-IR model achieves ~0.35-0.38 IoU (channel impact moderate)
+- NAIP transfer shows measurable but modest improvement
+- Confirms S2 features transfer, but NAIP's high resolution requires some task-specific tuning
+- Reduces NAIP labeling burden by ~30-50%
 
 ### Challenging Case
-- RGB-IR model struggles (IoU < 0.30)
-- NAIP transfer doesn't help or hurts
-- Suggests burn detection heavily dependent on multi-spectral data
-- Informs Option C scope: cross-satellite may require more data/tuning
+- RGB-IR model underperforms (IoU < 0.30)
+- NAIP transfer provides minimal benefit
+- Suggests 4-channel limitation or spectral mismatch
+- Informs decision: may need full 24-channel transfer or more NAIP labels
+- Guides Option C scope: cross-satellite transfer complexity
 
 ## Timeline
 
