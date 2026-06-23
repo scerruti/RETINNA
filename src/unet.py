@@ -77,12 +77,12 @@ class UNet(nn.Module):
     - Decoder: 4 levels of upsampling with skip connections (precise localization)
 
     Args:
-        in_channels (int): Number of input channels (default 12 for Sentinel-2)
+        in_channels (int): Number of input channels (default 24 for bi-temporal Sentinel-2: 2 timesteps × 12 bands)
         out_channels (int): Number of output classes (default 2 for binary segmentation)
         features (list): Channel progression [64, 128, 256, 512]
     """
 
-    def __init__(self, in_channels=12, out_channels=2, features=None):
+    def __init__(self, in_channels=24, out_channels=2, features=None):
         super().__init__()
 
         if features is None:
