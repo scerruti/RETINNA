@@ -22,24 +22,28 @@
 
 ## Training Curves
 
-![Training Curves](training_curves.png)
+### Loss Curve
 
-### Loss Curve (Left)
-- **Train Loss** (blue): Decreases smoothly from 0.56 → 0.24
-  - Indicates model is learning consistently
-  - No divergence or NaN values
-  
-- **Val Loss** (orange): Decreases from 0.50 → 0.31
-  - More volatile than train loss (expected for validation set)
-  - General downward trend indicates generalization
-  - Some spikes (epochs 5, 17) suggest occasional difficult batches
+![Loss Curves: Train vs Validation](baseline_loss_curves.png)
 
-### IoU Curve (Right)
-- **Validation IoU** (green): Increases from 0.38 → 0.47
-  - Starting point (0.38) is reasonable for random initialization
-  - Best performance: **0.47 at epoch 13**
-  - Validation IoU metric for burned class only (binary segmentation)
-  - Noisy trajectory is normal (class is sparse, ~10% of pixels)
+**Train Loss** (blue): Decreases smoothly from 0.56 → 0.24
+- Indicates model is learning consistently
+- No divergence or NaN values
+
+**Val Loss** (orange): Decreases from 0.50 → 0.31
+- More volatile than train loss (expected for validation set)
+- General downward trend indicates generalization
+- Some spikes (epochs 5, 17) suggest occasional difficult batches
+
+### IoU Curve
+
+![Validation IoU for Burned Class](baseline_iou_curves.png)
+
+**Validation IoU** (green): Increases from 0.38 → 0.47
+- Starting point (0.38) is reasonable for random initialization
+- Best performance: **0.47 at epoch 13**
+- Validation IoU metric for burned class only (binary segmentation)
+- Noisy trajectory is normal (class is sparse, ~10% of pixels)
 
 ## Model Performance
 
