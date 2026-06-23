@@ -20,7 +20,7 @@ graph TD
     
     G -->|Output| H["Predictions<br/>[B, 2, 512, 512]<br/>Class: burned/unburned"]
     
-    H -->|Loss (BCE+Dice)| I["Training Signal"]
+    H -->|Loss Function| I["Training Signal<br/>BCE + Dice Loss"]
     I -->|Backprop| D
     
     H -->|Inference| J["Burn Scar Mask<br/>High-Precision Boundaries"]
