@@ -149,13 +149,18 @@ Currently in active development. Track progress using daily sprint issues in the
 - CaBuAr Dataset: [Hugging Face - california_burned_areas](https://huggingface.co/datasets/DarthReca/california_burned_areas)
 - Sentinel-2 Satellite Imagery: [ESA Copernicus Program](https://sentinel.esa.int/web/sentinel/missions/sentinel-2)
 
-## Grant Project
+## Program Context
 
-This project is part of a broader grant initiative focused on wildfire risk assessment and landscape recovery optimization using satellite imagery and machine learning.
+This project is developed as part of **RETINNA** (Research Experience for Teachers in Interdisciplinary Artificial Intelligence), a 6-week summer program at UC San Diego for K-12 and community college computer science teachers to develop expertise in deep learning and AI curriculum design.
+
+**RETINNA Program**: https://sites.google.com/ucsd.edu/ucsdretinna/
+
+The wildfire burn scar segmentation work also contributes to a broader grant initiative focused on wildfire risk assessment and landscape recovery optimization using satellite imagery and machine learning.
 
 ---
 
-**Author**: Stephen Cerruti  
-**Advisor**: Gary Cottrell, UC San Diego  
+**Author**: Stephen Cerruti  (steve.cerruti@gmail.com)
+**Advisor**: Garrison Cottrell, UC San Diego (gary@ucsd.edu)  
+**TA**: Zhining Chen (zhc008@ucsd.edu)  
 **Acknowledgments**: Claude Code, GitHub Copilot, Google Gemini  
 **License**: MIT
