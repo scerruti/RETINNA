@@ -269,6 +269,88 @@ graph LR
 
 ---
 
+## Design Decision: U-Net Over FCN (Conscious Model Selection)
+
+### Evaluating PA3's Approach
+
+PA3 used **FCN (Fully Convolutional Networks)** on the Indian Driving Dataset (IDD) with 27 semantic classes. Understanding why FCN was appropriate there—and why it is *not* appropriate here—demonstrates conscious architecture selection based on task requirements, not just trend-following.
+
+**PA3 Task Analysis**:
+```
+Scene Segmentation (IDD):
+- Goal: Classify regions (road, sidewalk, building, vehicle, person, etc.)
+- Object characteristics: Large, uniform areas (buildings occupy 100s × 100s pixels)
+- Precision requirement: Region-level (is this a road? yes/no)
+- Boundary precision: Low importance (road edge at pixel 512 vs 514 = same road)
+- Classes: 27 semantic categories (high diversity)
+- Architecture fit: FCN ✓ (sufficient for region classification)
+```
+
+**Our Task Analysis**:
+```
+Burn Scar Detection (CaBuAr):
+- Goal: Delineate precise burn perimeters (for acreage, recovery planning)
+- Object characteristics: Variable-sized with sharp, defined boundaries
+- Precision requirement: Pixel-level (exact burn perimeter)
+- Boundary precision: HIGH importance (acreage = f(perimeter); even 1% error costs thousands)
+- Classes: 2-4 (binary or severity levels; low diversity)
+- Architecture fit: FCN ✗ (boundary blur unacceptable)
+                   U-Net ✓ (skip connections preserve precision)
+```
+
+### The Critical Insight: Class Count ≠ Precision Requirement
+
+**Common misconception**: "More classes → more complex → need more sophisticated architecture"
+
+**Reality for our task**: The architecture decision is driven by **boundary precision**, not **class diversity**.
+
+| Dimension | PA3 (FCN) | Our Task (U-Net) |
+|-----------|-----------|------------------|
+| **Classes** | 27 diverse categories | 2-4 related classes |
+| **Class diversity** | High (road, tree, person, car) | Low (burned, unburned) |
+| **Object size** | Large (buildings, roads) | Variable (1-1000+ hectares) |
+| **Boundary precision** | Low (region classification) | High (acreage calculation) |
+| **Why this architecture** | Semantic diversity | Spatial precision |
+
+**Key realization**: If our task were "Classify tiles as burned/unburned/water" with region-level precision, FCN would be sufficient. But "detect exact burn perimeters" demands U-Net regardless of class count.
+
+### Multi-Class Burn Scenario (Option B)
+
+This decision holds even if we pursue Option B (multi-class burn severity):
+
+```python
+# Option A: Binary classification
+final_layer = Conv2d(64, 2, kernel_size=1)  # Output: unburned/burned
+
+# Option B: Severity classification  
+final_layer = Conv2d(64, 4, kernel_size=1)  # Output: unburned/low/moderate/high
+
+# U-Net backbone: UNCHANGED
+# Skip connections: UNCHANGED
+# Precision mechanism: UNCHANGED
+```
+
+Even with 4 burn severity classes, precision requirements don't diminish. Landowners need to know: "Where exactly does my damaged land start?" The U-Net backbone's skip connections solve this precision problem equally for 2, 4, or 27 classes.
+
+**Why not FCN for multi-class burn?**
+- Severity boundaries also need precision (farmer needs to know exact damage extent)
+- Blurry transitions would be misclassified (is this low or moderate severity? depends on precise pixel-level detail)
+- Skip connections aren't for diversity—they're for precision
+- The fundamental task (delineate boundaries) doesn't change with class count
+
+### Conclusion: Deliberate Architectural Choice
+
+This is a **conscious rejection of PA3's approach**—not because PA3 was wrong, but because the tasks are fundamentally different:
+
+| Question | PA3 Answer | Our Answer |
+|----------|-----------|-----------|
+| What is the primary challenge? | Learning 27 classes | Detecting precise boundaries |
+| What solves that challenge? | Deep network learning features | Skip connections preserving detail |
+| Does adding classes change this? | Yes (27 classes → 100 classes, gets harder) | No (2 classes → 4 classes, same precision needed) |
+| Architecture implication | Class diversity → complexity → deeper/wider network | Boundary precision → detail preservation → skip connections |
+
+---
+
 ## Architecture Advantages Summary
 
 ```mermaid
@@ -330,11 +412,3 @@ graph TD
 - Most medical/satellite segmentation uses U-Net or variants
 - FCN used for scene-level tasks (road/building detection at lower precision)
 - Burn detection requires U-Net for boundary accuracy
-
----
-
-## Next Steps
-
-- **Issue #11**: Training Script (loss function, optimizer, training loop)
-- **Issue #12**: Baseline Evaluation (compute IoU, visualize predictions)
-- **Day 3**: Train U-Net on CaBuAr dataset
