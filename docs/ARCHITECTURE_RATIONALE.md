@@ -378,6 +378,40 @@ graph TD
 
 ---
 
+## Handling Bi-Temporal Data
+
+CaBuAr provides **bi-temporal satellite imagery** (pre-fire and post-fire):
+```
+Raw CaBuAr data shape: [B, 2, 12, 512, 512]
+  B = batch size
+  2 = timesteps (pre-fire, post-fire)
+  12 = spectral bands
+  512×512 = spatial resolution
+```
+
+**Challenge**: Standard U-Net expects channel-first format `[B, C, H, W]`, not `[B, T, C, H, W]`.
+
+**Solution**: Flatten timesteps into the channel dimension
+```python
+# Reshape: [B, 2, 12, 512, 512] → [B, 24, 512, 512]
+B, T, C, H, W = images.shape
+images = images.view(B, T * C, H, W)  # Flatten temporal dimension
+
+# Now feed to U-Net
+output = model(images)  # U-Net expects 24 input channels
+```
+
+**Why this works**:
+- Temporal information (change between timesteps) is encoded in channels 0-11 (pre-fire) vs 12-23 (post-fire)
+- U-Net learns to weight temporal differences automatically
+- Simpler than building a 3D CNN or attention-based temporal model
+- Proven effective for change detection tasks
+
+**Architecture adjustment**:
+- U-Net default: `in_channels=24` (not 12)
+- Training script: Flattens batch data before forward pass
+- No change to U-Net structure, only channel count
+
 ## Implementation in This Project
 
 **File**: `src/unet.py`
@@ -388,10 +422,10 @@ graph TD
 - `DecoderBlock`: Upsampling (transpose conv → concat skip → doubleconv)
 - `UNet`: Full architecture (4 encoders → bottleneck → 4 decoders)
 
-**Parameters**: 31M trainable (appropriate for 12-channel satellite data)
+**Parameters**: 31M trainable (appropriate for 24-channel bi-temporal data)
 
 **Input/Output**:
-- Input: `[B, 12, 512, 512]` (batch, 12 bands, spatial)
+- Input: `[B, 24, 512, 512]` (batch, 2 timesteps × 12 bands, spatial)
 - Output: `[B, 2, 512, 512]` (batch, 2 classes, spatial)
 
 ---
