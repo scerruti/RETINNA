@@ -52,27 +52,22 @@ Investigating cross-satellite transfer learning: train burn detection on Sentine
 ### Data Workflow
 
 ```
-Step 1: Create Accurate Labels Using 24-Channel S2
-CaBuAr HDF5 (Sentinel-2 24-channel)
+Step 1: Extract 4-Channel RGB-IR from S2 (Band-Compatible with NAIP)
+CaBuAr HDF5 (Sentinel-2 24-channel + TorchGeo masks)
 ├── 3098 train samples [2, 12, 512, 512]
 ├── 644 val samples [2, 12, 512, 512]
 └── 644 test samples [2, 12, 512, 512]
+(with existing TorchGeo ground truth masks)
 
-Analyze with 24 spectral bands
-       ↓
-Verify/refine burn masks (ground truth)
-       ↓
-High-quality labels (easier with full spectral info)
-
-Step 2: Train on 4-Channel RGB-IR (Band-Compatible with NAIP)
-Extract RGB-IR [B02, B03, B04, B08] from S2
+Extract RGB-IR [B02, B03, B04, B08]
          ↓
 CaBuAr RGB-IR Dataset
 ├── 3098 train samples [2, 4, 512, 512]
 ├── 644 val samples [2, 4, 512, 512]
 └── 644 test samples [2, 4, 512, 512]
-(Using verified labels from 24-channel analysis)
+(same TorchGeo labels, 4 bands)
 
+Step 2: Train 4-Channel RGB-IR Model on Sentinel-2
 Train U-Net on 4-channel RGB-IR
          ↓
 RGB-IR Model Checkpoint
@@ -88,7 +83,7 @@ Fine-tune S2 RGB-IR model on NAIP
 Compare vs NAIP-only baseline
 ```
 
-**Key insight**: 24-channel S2 is used for label creation/verification, not part of the transfer chain itself. The actual transfer uses 4-channel S2 → 4-channel NAIP (compatible band structure).
+**Key point**: Uses existing TorchGeo CaBuAr masks (no label verification step). The 4-channel RGB-IR structure provides band-compatible representation for transfer to NAIP.
 
 ### Storage Plan
 
@@ -165,29 +160,29 @@ Compare vs NAIP-only baseline
 **Task**: `extract_rgbir.ipynb` (Colab notebook)
 
 **What it does**:
-- Load CaBuAr Sentinel-2 with existing (verified) labels
-- Extract 4-channel RGB-IR [B02, B03, B04, B08]
+- Load CaBuAr Sentinel-2 with existing TorchGeo masks
+- Extract 4-channel RGB-IR [B02, B03, B04, B08] (band-compatible with NAIP)
 - Create new HDF5 dataset with 4-channel data
-- Preserve original train/val/test splits
+- Preserve original train/val/test splits and masks
 
 **Pseudocode**:
 ```python
-# Load CaBuAr (existing labels already verified)
+# Load CaBuAr with existing TorchGeo masks
 cabuaur = CaBuAr(root=..., split='all', download=True)
 
 # Extract RGB-IR for each sample
 for sample in cabuaur:
     image = sample['image']  # [2, 12, 512, 512] - 24 channels
-    mask = sample['mask']     # [2, 1, 512, 512] - verified labels
+    mask = sample['mask']     # [1, 512, 512] - TorchGeo ground truth
     
     # Select bands: B02(1), B03(2), B04(3), B08(7)
     rgbir = image[:, [1, 2, 3, 7], :, :]  # [2, 4, 512, 512]
     
-    # Store with same labels in new HDF5
+    # Store with same mask in new HDF5
     save_to_hdf5(rgbir, mask, sample_id, split)
 ```
 
-**Output**: `cabuaur_rgbir.hdf5` on Drive (same labels, 4 channels)
+**Output**: `cabuaur_rgbir.hdf5` on Drive (TorchGeo labels, 4 channels)
 
 ### Phase 2: Train 4-Channel RGB-IR Model
 **Task**: Modify `03_training.ipynb` to use RGB-IR dataset
