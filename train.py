@@ -37,8 +37,9 @@ class BCEDiceLoss(nn.Module):
             predictions: [B, 2, H, W] logits (not yet softmax/sigmoid)
             targets: [B, 1, H, W] binary mask (0 or 1)
         """
-        # BCE loss (per-pixel binary cross-entropy)
-        bce_loss = self.bce(predictions, targets.float())
+        # Extract burned class logits for BCE loss
+        burned_logits = predictions[:, 1:2]  # [B, 1, H, W]
+        bce_loss = self.bce(burned_logits, targets.float())
 
         # Dice loss (IoU-based, good for imbalanced data)
         probs = torch.softmax(predictions, dim=1)  # [B, 2, H, W]
@@ -169,6 +170,14 @@ def main(args):
     # Setup device
     device = get_device()
 
+    # Setup Google Drive caching for dataset (Colab only)
+    root = None
+    try:
+        from src.colab_utils import setup_cabuaur_cached
+        root = setup_cabuaur_cached()
+    except (ImportError, RuntimeError):
+        pass  # Falls back to default TorchGeo cache
+
     # Create output directories
     checkpoint_dir = Path(args.checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -188,7 +197,8 @@ def main(args):
     dataloaders = get_dataloaders(
         batch_size=args.batch_size,
         num_workers=args.num_workers,
-        normalize=True
+        normalize=True,
+        root=root
     )
 
     print(f"Train samples: {len(dataloaders['datasets']['train'])}")
