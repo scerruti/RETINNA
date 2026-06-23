@@ -52,7 +52,7 @@ def validate_split(dataset, split_name, num_samples=None):
             issues['zero_band_samples'].append(i)
 
         # Check for high cloud coverage (CLP = band 10)
-        clp = image[0, 10].numpy().mean()
+        clp = image[0, 10].mean()
         if clp > 0.3:
             issues['high_cloud_count'] += 1
             issues['high_cloud_samples'].append((i, clp))
