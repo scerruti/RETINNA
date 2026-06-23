@@ -1,0 +1,19 @@
+{
+  "threshold": 0.5,
+  "accuracy": 0.891731486600988,
+  "precision": 0.9423692398151334,
+  "recall": 0.6052434235724078,
+  "f1_score": 0.7370872550584874,
+  "iou": 0.5836406814412355,
+  "roc_auc": 0.9196359945386938,
+  "true_negatives": 13190440,
+  "false_positives": 165448,
+  "false_negatives": 1764524,
+  "true_positives": 2705380,
+  "specificity": 0.9876123549403828,
+  "sensitivity": 0.6052434235724078,
+  "test_samples": 68,
+  "total_pixels": 17825792,
+  "burned_pixels_ground_truth": 4469904,
+  "burned_pixels_predicted": 2870828
+}
