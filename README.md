@@ -15,7 +15,7 @@ Unlike binary classification ("Is there a fire?"), this semantic segmentation ap
 
 This project leverages the **CaBuAr (California Burned Areas)** dataset from [Hugging Face](https://huggingface.co/datasets/DarthReca/california_burned_areas), loaded via the **TorchGeo** library on Colab.
 
-**✅ Dataset Access**: Fully working on Google Colab. See [Dataset Access Documentation](docs/CABUАР_DATASET_ACCESS.md) for implementation details and troubleshooting.
+**✅ Dataset Access**: Fully working on Google Colab via TorchGeo. Automatically cached to Google Drive on first run.
 
 ### Input Data
 - **Bi-temporal satellite imagery**: Pre-fire and post-fire passes captured by Sentinel-2
@@ -124,24 +124,32 @@ By the end of the development sprint:
 
 ## Getting Started
 
-### Prerequisites
+See **[QUICK_START.md](docs/QUICK_START.md)** for step-by-step instructions to run on Google Colab.
+
+### Quick Overview
+1. **Data Pipeline**: `notebooks/01_data_pipeline.ipynb` — Load and validate dataset
+2. **Exploration**: `notebooks/02_exploratory_analysis.ipynb` — Analyze spectral properties
+3. **Training**: `notebooks/03_training.ipynb` — Train model with interactive controls
+4. **Inference**: `notebooks/04_inference.ipynb` — Generate predictions on test set
+5. **Evaluation**: `notebooks/05_analysis.ipynb` — Compute metrics and visualizations
+
+### Training Script (Advanced)
 ```bash
-pip install -r requirements.txt
+python train.py --epochs 50 --batch-size 32 --learning-rate 0.0005
 ```
 
-### Training
-```python
-python train.py --epochs 50 --batch_size 32 --learning_rate 0.001
-```
-
-### Inference
-```python
-python inference.py --model_weights model.pth --image_pair pre_fire.tif post_fire.tif
-```
+See [TRAINING_PROCESS.md](docs/TRAINING_PROCESS.md) for detailed configuration options.
 
 ## Project Status
 
-Currently in active development. Track progress using daily sprint issues in the repository.
+**Day 3 (In Progress):**
+- ✅ Data pipeline with CaBuAr dataset and Google Drive caching
+- ✅ U-Net architecture (31M parameters) with skip connections
+- ✅ Training script with BCE+Dice loss and checkpoint management
+- ✅ Training notebooks (01-05) with interactive epochs slider
+- 🔄 Baseline model training and evaluation
+
+Track progress using sprint issues in the repository: [Issues](https://github.com/scerruti/RETINNA/issues)
 
 ## References
 
