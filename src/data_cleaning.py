@@ -1,217 +1,138 @@
 """
-Data cleaning script for CaBuAr dataset.
+Data validation for CaBuAr dataset using native train/val/test splits.
 
-Identifies corrupted/empty tiles, removes/flags them, and creates train/val/test splits.
-Run this once to generate clean_splits.json for downstream use.
+Validates data quality and reports findings. CaBuAr provides pre-defined splits.
 """
 
-import json
 import numpy as np
-from pathlib import Path
 from torchgeo.datasets import CaBuAr
 
 
-def identify_corrupted_tiles(dataset, num_samples=None):
+def validate_split(dataset, split_name, num_samples=None):
     """
-    Identify corrupted tiles: NaN, zeros, shape mismatches, extreme values.
+    Validate a dataset split for data quality issues.
 
     Args:
-        dataset: CaBuAr dataset
+        dataset: CaBuAr dataset for a specific split
+        split_name (str): Name of split ('train', 'val', 'test')
         num_samples: Number to check (None = all)
 
     Returns:
-        dict with 'corrupted_indices' and 'issues' details
+        dict with validation results
     """
     if num_samples is None:
         num_samples = len(dataset)
 
-    corrupted = []
-    issues = {}
+    issues = {
+        'nan_count': 0,
+        'zero_bands_count': 0,
+        'shape_mismatch_count': 0,
+        'empty_tiles': {
+            'all_burned': 0,
+            'all_unburned': 0
+        },
+        'samples_checked': min(num_samples, len(dataset))
+    }
 
     for i in range(min(num_samples, len(dataset))):
         sample = dataset[i]
         image = sample['image'].numpy()
         mask = sample['mask'].numpy()
 
-        flags = []
-
         # Check for NaN values
         if np.any(np.isnan(image)) or np.any(np.isnan(mask)):
-            flags.append("contains_nan")
+            issues['nan_count'] += 1
 
-        # Check for all-zero bands (dead sensor)
+        # Check for all-zero bands
         if np.any(np.all(image == 0, axis=(2, 3))):
-            flags.append("zero_bands")
+            issues['zero_bands_count'] += 1
 
         # Check shape consistency
         if image.shape != (2, 12, 512, 512) or mask.shape != (1, 512, 512):
-            flags.append(f"wrong_shape_img={image.shape}_mask={mask.shape}")
+            issues['shape_mismatch_count'] += 1
 
-        # Check for extreme value ranges (Sentinel-2 is 16-bit: 0-65535)
-        if np.any(image < 0) or np.any(image > 65535):
-            flags.append(f"extreme_values_range=[{image.min()},{image.max()}]")
+        # Check for empty tiles (no class variation)
+        mask_flat = mask[0]
+        burned_pct = (mask_flat > 0).sum() / mask_flat.size
 
-        if flags:
-            corrupted.append(i)
-            issues[i] = flags
-
-    return {
-        'corrupted_indices': corrupted,
-        'issues': issues,
-        'count': len(corrupted)
-    }
-
-
-def identify_empty_tiles(dataset, num_samples=None):
-    """
-    Identify tiles with no variation in labels (all burned or all unburned).
-    These are useful for QA but may cause issues in stratified sampling.
-
-    Args:
-        dataset: CaBuAr dataset
-        num_samples: Number to check (None = all)
-
-    Returns:
-        dict with 'empty_indices' and class distribution
-    """
-    if num_samples is None:
-        num_samples = len(dataset)
-
-    empty = []
-    class_dist = {'all_burned': [], 'all_unburned': []}
-
-    for i in range(min(num_samples, len(dataset))):
-        sample = dataset[i]
-        mask = sample['mask'].numpy()[0]
-
-        burned_pct = (mask > 0).sum() / mask.size
-
-        # Flag tiles with very imbalanced labels
         if burned_pct == 1.0:
-            empty.append(i)
-            class_dist['all_burned'].append(i)
+            issues['empty_tiles']['all_burned'] += 1
         elif burned_pct == 0.0:
-            empty.append(i)
-            class_dist['all_unburned'].append(i)
+            issues['empty_tiles']['all_unburned'] += 1
 
     return {
-        'empty_indices': empty,
-        'class_distribution': class_dist,
-        'count': len(empty)
+        'split': split_name,
+        'total_samples': len(dataset),
+        'validation_issues': issues
     }
 
 
-def create_splits(dataset, test_indices, val_ratio=0.15, train_ratio=0.70):
+def validate_dataset(dataset_root='/tmp/cabuaur'):
     """
-    Create train/val/test splits with optional stratification.
-
-    Args:
-        dataset: CaBuAr dataset
-        test_indices: Indices to exclude (corrupted/empty)
-        val_ratio: Fraction of clean data for validation (default 0.15)
-        train_ratio: Fraction of clean data for training (default 0.70)
-                     remaining goes to test
-
-    Returns:
-        dict with train/val/test indices and split info
-    """
-    # Get clean indices
-    all_indices = set(range(len(dataset)))
-    clean_indices = sorted(list(all_indices - set(test_indices)))
-
-    n_clean = len(clean_indices)
-    n_train = int(n_clean * train_ratio)
-    n_val = int(n_clean * val_ratio)
-
-    # Random shuffle for now (stratification could be added later)
-    np.random.shuffle(clean_indices)
-
-    train_indices = clean_indices[:n_train]
-    val_indices = clean_indices[n_train:n_train + n_val]
-    test_indices_final = clean_indices[n_train + n_val:]
-
-    return {
-        'train': sorted(train_indices),
-        'val': sorted(val_indices),
-        'test': sorted(test_indices_final),
-        'split_info': {
-            'train_count': len(train_indices),
-            'val_count': len(val_indices),
-            'test_count': len(test_indices_final),
-            'train_ratio': train_ratio,
-            'val_ratio': val_ratio,
-            'test_ratio': 1.0 - train_ratio - val_ratio,
-            'total_clean': n_clean
-        }
-    }
-
-
-def save_splits(splits, output_path='data/clean_splits.json'):
-    """Save splits to JSON file for later use."""
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w') as f:
-        json.dump(splits, f, indent=2)
-    print(f"✓ Splits saved to {output_path}")
-
-
-def clean_dataset(dataset_root='/tmp/cabuaur', output_path='data/clean_splits.json'):
-    """
-    Main function: load dataset, identify issues, create splits, save config.
+    Main function: validate all native splits in CaBuAr dataset.
 
     Args:
         dataset_root: Path to CaBuAr dataset
-        output_path: Where to save clean_splits.json
     """
     print("\n" + "="*70)
-    print("CaBuAr Dataset Cleaning Pipeline")
+    print("CaBuAr Dataset Validation")
     print("="*70)
 
-    print(f"\nLoading CaBuAr dataset from {dataset_root}...")
-    # Load full dataset (CaBuAr test split is small; use full dataset for cleaning)
-    dataset = CaBuAr(root=dataset_root, download=True, split='all')
-    print(f"✓ Loaded {len(dataset)} total samples")
+    results = {}
 
-    # Check all samples for corruption
-    print("\nScanning for corrupted tiles...")
-    corrupted = identify_corrupted_tiles(dataset)
-    print(f"✓ Found {corrupted['count']} corrupted tiles")
-    if corrupted['count'] > 0:
-        print(f"  Issues: {corrupted['issues']}")
+    for split in ['train', 'val', 'test']:
+        print(f"\nValidating {split} split...")
+        dataset = CaBuAr(root=dataset_root, download=True, split=split)
+        result = validate_split(dataset, split)
+        results[split] = result
 
-    # Check for empty tiles
-    print("\nScanning for empty/imbalanced tiles...")
-    empty = identify_empty_tiles(dataset)
-    print(f"✓ Found {empty['count']} empty tiles")
-    print(f"  All burned: {len(empty['class_distribution']['all_burned'])}")
-    print(f"  All unburned: {len(empty['class_distribution']['all_unburned'])}")
+        issues = result['validation_issues']
+        print(f"  Total samples: {result['total_samples']}")
+        print(f"  NaN values: {issues['nan_count']}")
+        print(f"  Zero bands: {issues['zero_bands_count']}")
+        print(f"  Shape mismatches: {issues['shape_mismatch_count']}")
+        print(f"  All burned tiles: {issues['empty_tiles']['all_burned']}")
+        print(f"  All unburned tiles: {issues['empty_tiles']['all_unburned']}")
 
-    # Combine corrupted + empty as "exclude" set
-    exclude_indices = set(corrupted['corrupted_indices'] + empty['empty_indices'])
-
-    # Create splits
-    print("\nCreating train/val/test splits...")
-    splits = create_splits(dataset, exclude_indices, val_ratio=0.15, train_ratio=0.70)
-
-    print(f"\n" + "="*70)
-    print("SPLIT SUMMARY")
-    print("="*70)
-    print(f"Total samples: {len(dataset)}")
-    print(f"Corrupted (removed): {corrupted['count']}")
-    print(f"Empty/imbalanced (flagged): {empty['count']}")
-    print(f"Clean samples: {splits['split_info']['total_clean']}")
-    print(f"\nTrain: {splits['split_info']['train_count']} ({splits['split_info']['train_ratio']*100:.0f}%)")
-    print(f"Val:   {splits['split_info']['val_count']} ({splits['split_info']['val_ratio']*100:.0f}%)")
-    print(f"Test:  {splits['split_info']['test_count']} ({splits['split_info']['test_ratio']*100:.0f}%)")
+    # Summary report
+    print("\n" + "="*70)
+    print("VALIDATION SUMMARY")
     print("="*70)
 
-    # Save splits
-    save_splits(splits, output_path)
+    total_samples = sum(r['total_samples'] for r in results.values())
+    total_issues = sum(
+        r['validation_issues']['nan_count'] +
+        r['validation_issues']['zero_bands_count'] +
+        r['validation_issues']['shape_mismatch_count']
+        for r in results.values()
+    )
 
-    return splits
+    print(f"\nTotal samples: {total_samples}")
+    print(f"  Train: {results['train']['total_samples']}")
+    print(f"  Val:   {results['val']['total_samples']}")
+    print(f"  Test:  {results['test']['total_samples']}")
+
+    print(f"\nData quality issues:")
+    print(f"  NaN values: {sum(r['validation_issues']['nan_count'] for r in results.values())}")
+    print(f"  Zero bands: {sum(r['validation_issues']['zero_bands_count'] for r in results.values())}")
+    print(f"  Shape mismatches: {sum(r['validation_issues']['shape_mismatch_count'] for r in results.values())}")
+    print(f"  Total corrupted: {total_issues}")
+
+    print(f"\nEmpty tiles (valid but extreme):")
+    print(f"  All burned: {sum(r['validation_issues']['empty_tiles']['all_burned'] for r in results.values())}")
+    print(f"  All unburned: {sum(r['validation_issues']['empty_tiles']['all_unburned'] for r in results.values())}")
+
+    print("\n" + "="*70)
+    if total_issues == 0:
+        print("✅ DATASET CLEAN: No corruption detected")
+    else:
+        print(f"⚠️  {total_issues} corrupted samples detected")
+    print("="*70)
+
+    return results
 
 
 if __name__ == '__main__':
-    # Run with default paths
-    splits = clean_dataset()
-    print("\n✅ Data cleaning complete")
-    print(f"Use clean_splits.json with CaBuArCleanDataset for train/val/test loading")
+    results = validate_dataset()
+    print("\n✅ Validation complete")
+    print("CaBuAr native splits (train/val/test) are ready to use")

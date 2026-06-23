@@ -1,87 +1,62 @@
 """
-CaBuAr dataset with train/val/test splits.
+CaBuAr dataset wrapper using native train/val/test splits.
 
-Loads cleaned data using split indices from clean_splits.json.
+Provides convenient access to CaBuAr's pre-defined splits with PyTorch DataLoader support.
 """
 
-import json
-from pathlib import Path
 import torch
 from torchgeo.datasets import CaBuAr
 
 
-class CaBuArCleanDataset(torch.utils.data.Dataset):
+class CaBuArDataset(torch.utils.data.Dataset):
     """
-    CaBuAr dataset with train/val/test splits.
+    Simple wrapper around CaBuAr with native train/val/test splits.
 
-    Filters the base CaBuAr dataset to only return samples from the specified split.
-    Requires clean_splits.json (created by data_cleaning.py).
+    CaBuAr provides pre-defined, balanced splits. This class makes them
+    easy to use with PyTorch training pipelines.
 
     Example:
-        >>> train_dataset = CaBuArCleanDataset(split='train', root='/tmp/cabuaur')
-        >>> val_dataset = CaBuArCleanDataset(split='val', root='/tmp/cabuaur')
-        >>> test_dataset = CaBuArCleanDataset(split='test', root='/tmp/cabuaur')
+        >>> train_dataset = CaBuArDataset(split='train')
+        >>> val_dataset = CaBuArDataset(split='val')
+        >>> test_dataset = CaBuArDataset(split='test')
+        >>>
+        >>> dataloaders = get_dataloaders(batch_size=32)
+        >>> for batch in dataloaders['train']:
+        ...     image = batch['image']
+        ...     mask = batch['mask']
     """
 
-    def __init__(self, split='train', root='/tmp/cabuaur', splits_file='data/clean_splits.json'):
+    def __init__(self, split='train', root='/tmp/cabuaur'):
         """
         Initialize dataset.
 
         Args:
             split (str): One of 'train', 'val', 'test'
             root (str): Path to CaBuAr dataset root
-            splits_file (str): Path to clean_splits.json
         """
-        assert split in ['train', 'val', 'test'], f"split must be one of train/val/test, got {split}"
+        assert split in ['train', 'val', 'test'], f"split must be train/val/test, got {split}"
         self.split = split
         self.root = root
-        self.splits_file = splits_file
-
-        # Load base dataset
-        self.base_dataset = CaBuAr(root=root, download=True, split='test')
-
-        # Load split indices
-        self._load_splits()
-
-    def _load_splits(self):
-        """Load split indices from JSON file."""
-        splits_path = Path(self.splits_file)
-
-        if not splits_path.exists():
-            raise FileNotFoundError(
-                f"clean_splits.json not found at {self.splits_file}\n"
-                f"Run: python src/data_cleaning.py"
-            )
-
-        with open(splits_path, 'r') as f:
-            splits_data = json.load(f)
-
-        self.indices = splits_data[self.split]
-        self.split_info = splits_data['split_info']
-
-        print(f"✓ Loaded {self.split} split: {len(self.indices)} samples")
+        self.dataset = CaBuAr(root=root, download=True, split=split)
+        print(f"✓ Loaded {self.split} split: {len(self.dataset)} samples")
 
     def __len__(self):
         """Return number of samples in this split."""
-        return len(self.indices)
+        return len(self.dataset)
 
     def __getitem__(self, idx):
-        """Get sample by index within this split."""
-        # idx is relative to this split (0 to len-1)
-        # map it to the actual base dataset index
-        actual_idx = self.indices[idx]
-        return self.base_dataset[actual_idx]
+        """Get sample by index."""
+        return self.dataset[idx]
 
     def get_split_info(self):
         """Return metadata about this split."""
         return {
             'split': self.split,
-            'count': len(self.indices),
-            'split_info': self.split_info
+            'count': len(self.dataset)
         }
 
 
-def get_dataloaders(batch_size=32, num_workers=0, root='/tmp/cabuaur', splits_file='data/clean_splits.json'):
+def get_dataloaders(batch_size=32, num_workers=0, root='/tmp/cabuaur', shuffle_train=True):
     """
     Convenience function to create train/val/test dataloaders.
 
@@ -89,20 +64,26 @@ def get_dataloaders(batch_size=32, num_workers=0, root='/tmp/cabuaur', splits_fi
         batch_size (int): Batch size
         num_workers (int): Number of workers for data loading
         root (str): Path to CaBuAr dataset
-        splits_file (str): Path to clean_splits.json
+        shuffle_train (bool): Shuffle training data (default True)
 
     Returns:
-        dict with 'train', 'val', 'test' dataloaders
+        dict with 'train', 'val', 'test' dataloaders and 'datasets'
+
+    Example:
+        >>> dataloaders = get_dataloaders(batch_size=32)
+        >>> train_loader = dataloaders['train']
+        >>> val_loader = dataloaders['val']
+        >>> test_loader = dataloaders['test']
     """
-    train_dataset = CaBuArCleanDataset(split='train', root=root, splits_file=splits_file)
-    val_dataset = CaBuArCleanDataset(split='val', root=root, splits_file=splits_file)
-    test_dataset = CaBuArCleanDataset(split='test', root=root, splits_file=splits_file)
+    train_dataset = CaBuArDataset(split='train', root=root)
+    val_dataset = CaBuArDataset(split='val', root=root)
+    test_dataset = CaBuArDataset(split='test', root=root)
 
     return {
         'train': torch.utils.data.DataLoader(
             train_dataset,
             batch_size=batch_size,
-            shuffle=True,
+            shuffle=shuffle_train,
             num_workers=num_workers
         ),
         'val': torch.utils.data.DataLoader(
