@@ -26,12 +26,15 @@ def validate_split(dataset, split_name, num_samples=None):
     issues = {
         'nan_count': 0,
         'zero_bands_count': 0,
+        'high_cloud_count': 0,
         'shape_mismatch_count': 0,
         'empty_tiles': {
             'all_burned': 0,
             'all_unburned': 0
         },
-        'samples_checked': min(num_samples, len(dataset))
+        'samples_checked': min(num_samples, len(dataset)),
+        'zero_band_samples': [],
+        'high_cloud_samples': []
     }
 
     for i in range(min(num_samples, len(dataset))):
@@ -46,6 +49,13 @@ def validate_split(dataset, split_name, num_samples=None):
         # Check for all-zero bands
         if np.any(np.all(image == 0, axis=(2, 3))):
             issues['zero_bands_count'] += 1
+            issues['zero_band_samples'].append(i)
+
+        # Check for high cloud coverage (CLP = band 10)
+        clp = image[0, 10].numpy().mean()
+        if clp > 0.3:
+            issues['high_cloud_count'] += 1
+            issues['high_cloud_samples'].append((i, clp))
 
         # Check shape consistency
         if image.shape != (2, 12, 512, 512) or mask.shape != (1, 512, 512):
@@ -115,8 +125,17 @@ def validate_dataset(dataset_root='/tmp/cabuaur'):
     print(f"\nData quality issues:")
     print(f"  NaN values: {sum(r['validation_issues']['nan_count'] for r in results.values())}")
     print(f"  Zero bands: {sum(r['validation_issues']['zero_bands_count'] for r in results.values())}")
+    print(f"  High cloud coverage (>30%): {sum(r['validation_issues']['high_cloud_count'] for r in results.values())}")
     print(f"  Shape mismatches: {sum(r['validation_issues']['shape_mismatch_count'] for r in results.values())}")
     print(f"  Total corrupted: {total_issues}")
+
+    print(f"\nCloud Coverage Correlation:")
+    print(f"  Investigating if zero-band samples have high cloud coverage...")
+    for split_name, result in results.items():
+        zero_band_idx = set(result['validation_issues']['zero_band_samples'])
+        high_cloud_idx = set(i for i, clp in result['validation_issues']['high_cloud_samples'])
+        overlap = zero_band_idx & high_cloud_idx
+        print(f"    {split_name}: {len(overlap)} zero-band samples with high clouds (out of {len(zero_band_idx)} zero-band)")
 
     print(f"\nEmpty tiles (valid but extreme):")
     print(f"  All burned: {sum(r['validation_issues']['empty_tiles']['all_burned'] for r in results.values())}")
