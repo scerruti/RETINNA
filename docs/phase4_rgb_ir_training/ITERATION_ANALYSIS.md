@@ -6,6 +6,185 @@
 
 ---
 
+## Table of Contents
+1. [Background & Context](#background--context)
+2. [Model & Architecture](#model--architecture)
+3. [Data Processing & Augmentation](#data-processing--augmentation)
+4. [Executive Summary](#executive-summary)
+5. [Problem Analysis](#the-core-problem-extreme-class-imbalance)
+6. [Iteration Details](#iteration-2-baseline-ce-loss--random-shuffle)
+7. [Lessons & Recommendations](#lessons-learned)
+
+---
+
+## Background & Context
+
+### Project Overview
+
+**RETINNA**: Remote sensing for burn scar mapping and severity classification
+
+**Phase II Goals**:
+- Train U-Net semantic segmentation model on Sentinel-2 satellite imagery
+- Classify burn severity into 7 classes (Unburned, Low, Moderate, High, Extreme, Water, Cloud)
+- Prepare model for zero-shot transfer to NAIP imagery (Phase III)
+
+**Phase II Timeline**:
+- **II_01 (Labeling)**: Created ground truth labels from Sentinel-2 RdNBR index
+- **II_02 (Training - THIS DOCUMENT)**: Train model on labeled data
+- **II_03**: Prepare for inference
+- **II_04 (Inference)**: Evaluate model performance on test set
+
+### Phase II_01: Labeling Methodology
+
+**Input Data**:
+- Pre-fire Sentinel-2 images (T0 before burn)
+- Post-fire Sentinel-2 images (T1 after burn)
+- Both have 4 bands: Blue (B02), Green (B03), Red (B04), NIR (B08)
+- Resolution: 512×512 pixels per scene
+
+**Ground Truth Creation**:
+```
+Step 1: Compute RdNBR (Relative Delta Normalized Burn Ratio)
+  RdNBR = (NBR_Pre - NBR_Post) / sqrt(abs(NBR_Pre/1000))
+  where NBR = (NIR - SWIR) / (NIR + SWIR)
+  Note: Using B08 (NIR), approximating SWIR with Red
+
+Step 2: RdNBR-to-Class Mapping
+  RdNBR ≥ 627     → Class 4 (Extreme severity)
+  484 ≤ RdNBR < 627  → Class 3 (High severity)
+  251 ≤ RdNBR < 484  → Class 2 (Moderate severity)
+  101 ≤ RdNBR < 251  → Class 1 (Low severity)
+  RdNBR < 101     → Class 0 (Unburned)
+  
+  Special handling for water/cloud pixels (Classes 5, 6)
+
+Step 3: Output
+  Per-fire event metadata with fold assignment (train/val/test)
+  Labels shape: [2N, 512, 512] (N pre-fire, N post-fire)
+  Ground truth uses POST-FIRE labels only (indices N→2N)
+```
+
+**Data Split**:
+- 68 fire events from Cabuaur study area
+- Folds: train/val/test split by fire event (no fire event crosses fold)
+- Training set: ~12 fires, ~N=69 scenes
+- Validation set: ~3 fires, ~N=18 scenes  
+- Test set: ~68 fires, ~N=68 scenes (larger for evaluation)
+
+### Architectural Evolution: Why 8-Channel?
+
+#### Phase I (Previous Work)
+- Input: 4-channel **difference image** (Post - Pre RGBN)
+- Precomputed in II_01: `[Post_R - Pre_R, Post_G - Pre_G, ...]`
+- Rationale: Highlight change detection
+- Baseline result: 88% validation accuracy, unknown test performance on minorities
+
+**Limitation**: Hardcodes change detection as subtraction. Model can't learn alternative spectral relationships.
+
+#### Phase II (This Work)
+- Input: 8-channel **concatenated** image (Pre RGBN + Post RGBN)
+- Layout: `[Pre_B, Pre_G, Pre_R, Pre_N, Post_B, Post_G, Post_R, Post_N]`
+- Rationale: Model learns change detection directly from spectral data
+- Benefit for Phase III: Can transfer to NAIP (has temporal pairs, but different spectral bands)
+
+**Change**: Model must learn what makes a good change detection signal, not assume subtraction.
+
+---
+
+## Model & Architecture
+
+### U-Net Semantic Segmentation
+
+**Architecture**: U-Net with bilinear interpolation
+
+```
+Input:  [N, 8, 512, 512]  (batch_size=4, 8 channels, 512×512 pixels)
+Output: [N, 7, 512, 512]  (7 burn severity classes)
+
+Encoder (Downsampling):
+  Input [N, 8, 512, 512]
+    ↓ DoubleConv(8 → 64) + MaxPool2d(2) [N, 64, 256, 256]
+    ↓ DoubleConv(64 → 128) + MaxPool2d(2) [N, 128, 128, 128]
+    ↓ DoubleConv(128 → 256) + MaxPool2d(2) [N, 256, 64, 64]
+    ↓ DoubleConv(256 → 512) + MaxPool2d(2) [N, 512, 32, 32]
+  Bottleneck:
+    ↓ DoubleConv(512 → 512) [N, 512, 16, 16]
+
+Decoder (Upsampling):
+  Upsample [N, 512, 16, 16] → [N, 256, 32, 32]
+    ↓ Concat skip connection + DoubleConv(512 → 256) [N, 256, 32, 32]
+  Upsample [N, 256, 32, 32] → [N, 128, 64, 64]
+    ↓ Concat skip connection + DoubleConv(256 → 128) [N, 128, 64, 64]
+  Upsample [N, 128, 64, 64] → [N, 64, 128, 128]
+    ↓ Concat skip connection + DoubleConv(128 → 64) [N, 64, 128, 128]
+  Upsample [N, 64, 128, 128] → [N, 32, 256, 256]
+    ↓ Concat skip connection + DoubleConv(64 → 32) [N, 32, 256, 256]
+
+Output Projection:
+  Conv2d(32 → 7) → [N, 7, 512, 512] (logits for 7 classes)
+```
+
+**Total Parameters**: ~7.8 million
+
+**Why U-Net**: Standard for semantic segmentation, skip connections preserve spatial detail needed for pixel-level classification.
+
+---
+
+## Data Processing & Augmentation
+
+### Z-Score Normalization
+
+**Computation** (training set only, no val/test leakage):
+```python
+# For each channel c in [0, 8):
+mean_c = mean(image[c] for all training samples)
+std_c = std(image[c] for all training samples)
+
+# Apply at training time (not in dataset):
+image_normalized[c] = (image[c] - mean_c) / (std_c + 1e-8)
+```
+
+**Computed Statistics**:
+```
+Channel 0 (Pre_Blue):  mean=0.0312, std=0.0341
+Channel 1 (Pre_Green): mean=0.0387, std=0.0412
+Channel 2 (Pre_Red):   mean=0.0536, std=0.0532
+Channel 3 (Pre_NIR):   mean=0.1843, std=0.1152
+Channel 4 (Post_Blue): mean=0.0276, std=0.0287
+Channel 5 (Post_Green):mean=0.0347, std=0.0363
+Channel 6 (Post_Red):  mean=0.0491, std=0.0481
+Channel 7 (Post_NIR):  mean=0.1621, std=0.1089
+```
+
+**Rationale**: Normalize each channel to unit variance, center at zero. Stabilizes gradient flow during training.
+
+### Data Augmentation
+
+Applied to training split only (not val/test):
+
+```
+1. Random Horizontal Flip (50% probability)
+   - Flip image and labels along width axis
+
+2. Random Vertical Flip (50% probability)
+   - Flip image and labels along height axis
+
+3. Random Rotation (90°, 180°, 270°, 0°)
+   - Rotate image and labels by k*90° where k ∈ [0, 4)
+   - Preserves pixel values (only permutation)
+
+4. Random Zoom/Crop (50% probability)
+   - Crop to random region: 384×384 to 512×512 pixels
+   - Resize back to 512×512 using bilinear (image) and nearest (labels)
+   - Effect: Model sees different scales of burn regions
+```
+
+**Design Philosophy**: Preserve semantic content (flip, rotate, zoom) without distortion. Augmentation helps with generalization to different orientations and scales of burn patterns.
+
+**NOT applied**: Color jittering, Gaussian blur (would obscure spectral signatures)
+
+---
+
 ## Executive Summary
 
 Attempted four different approaches to fix class imbalance in burn severity classification:
