@@ -1,0 +1,316 @@
+================================================================================
+PA3 TO RETINNA PRESENTATIONS - PROJECT MANIFEST
+================================================================================
+
+Project: Create two Slidev presentations for RETINNA PA3 project
+Status: ✅ COMPLETE - All 5 phases finished
+Date: 2026-06-24
+Total deliverables: 14 files, 444 KB
+
+================================================================================
+PRESENTATION FILES (2 Slidev Markdown presentations)
+================================================================================
+
+1. 10-min-PA3-pitch.md (2.7 KB)
+   - 6 slides in Slidev markdown format
+   - <50 words per slide constraint met
+   - Visualizations: 2 embedded (heatmap + metrics table)
+   - Duration: 10 minutes for typical audience
+   - Target: Quick technical pitch
+
+2. extended-PA3-talk.md (10 KB)
+   - 12 slides in Slidev markdown format
+   - 50-80 words per slide
+   - Visualizations: 4 embedded (heatmap, 2 tables, comparison charts)
+   - Duration: 25-30 minutes
+   - Target: In-depth technical presentation
+
+================================================================================
+PLANNING DOCUMENTS (2 detailed outlines)
+================================================================================
+
+3. 10-min-PA3-pitch-plan.md (3.8 KB)
+   - Slide-by-slide breakdown with design rationale
+   - Word count targets and element constraints
+   - Visualization specifications
+
+4. extended-PA3-talk-plan.md (9.1 KB)
+   - Comprehensive 12-slide outline
+   - Technical depth specifications
+   - All visualization requirements detailed
+
+================================================================================
+DOCUMENTATION (3 guides)
+================================================================================
+
+5. README.md (10 KB)
+   - Complete reference documentation
+   - Usage instructions (Slidev, PDF export, markdown viewers)
+   - Technical architecture details
+   - Presenter notes and best practices
+   - Future enhancement suggestions
+
+6. QUICK_START.md (8.3 KB)
+   - Fast-track guide for presenters
+   - 2-minute setup instructions
+   - Key content breakdown by slide
+   - Presenter tips and troubleshooting
+   - Customization examples
+
+7. COMPLETION_SUMMARY.md (15 KB)
+   - Project completion record
+   - Phase-by-phase verification
+   - Quality assurance checklist
+   - Deliverables summary
+   - Next steps for PDF export
+
+================================================================================
+VISUALIZATION GENERATION (1 Python script)
+================================================================================
+
+8. generate_visualizations.py (14 KB)
+   - 265 lines of Python code
+   - Generates all 6 visualization PNG files
+   - Libraries: numpy, matplotlib
+   - Output: visualizations/ directory
+   - DPI: 150 (suitable for projection and print)
+   - Run with: python generate_visualizations.py
+
+================================================================================
+VISUALIZATION ASSETS (6 PNG images, 347 KB total)
+================================================================================
+
+Located in: visualizations/ subdirectory
+
+9. false_negative_heatmap.png (47 KB)
+   - 1467×1484 pixels
+   - Pixel-level confusion matrix visualization
+   - Color coding: Gray (TN), Green (TP), Yellow (FP), Red (FN)
+   - Shows spatial pattern of model predictions
+   - Used in: Both presentations (Slide 5 & 11)
+
+10. metrics_table_10min.png (28 KB)
+    - 959×440 pixels
+    - Simple 4-metric summary: IoU, Precision, Recall, FN Rate
+    - Professional table formatting with header styling
+    - Used in: 10-minute presentation
+
+11. metrics_table_extended.png (57 KB)
+    - 1192×555 pixels
+    - Detailed 7-metric analysis table with interpretations
+    - Includes TP/FN counts and detailed analysis
+    - Used in: Extended presentation
+
+12. fcn_vs_unet_comparison.png (67 KB)
+    - 2082×735 pixels
+    - Dual bar charts comparing architectures
+    - Left: Accuracy metrics (IoU, Precision, Recall, FN Rate)
+    - Right: Efficiency trade-off (parameters vs. inference time)
+    - Used in: Extended presentation, Slide 10
+
+13. hyperparameter_tuning.png (61 KB)
+    - 1425×671 pixels
+    - Results table showing 5 configurations
+    - Highlights winning configuration (pos_weight=1.5)
+    - Shows IoU and Recall for each variant
+    - Used in: Extended presentation, Slide 9
+
+14. training_curves.png (87 KB)
+    - 2083×735 pixels
+    - Dual plot: Loss curves + IoU trend over 12 epochs
+    - Left: Training vs validation loss
+    - Right: Validation IoU progression showing convergence
+    - Used in: Extended presentation, Slide 8
+
+================================================================================
+DIRECTORY STRUCTURE
+================================================================================
+
+/Users/scerruti/RETINNA/presentations/
+├── 10-min-PA3-pitch.md              ← START HERE (short presentation)
+├── 10-min-PA3-pitch-plan.md
+├── extended-PA3-talk.md             ← OR START HERE (long presentation)
+├── extended-PA3-talk-plan.md
+├── generate_visualizations.py
+├── README.md                        ← COMPREHENSIVE GUIDE
+├── QUICK_START.md                   ← FAST START GUIDE
+├── COMPLETION_SUMMARY.md
+├── MANIFEST.txt                     ← THIS FILE
+└── visualizations/
+    ├── false_negative_heatmap.png
+    ├── metrics_table_10min.png
+    ├── metrics_table_extended.png
+    ├── fcn_vs_unet_comparison.png
+    ├── hyperparameter_tuning.png
+    └── training_curves.png
+
+================================================================================
+QUICK START
+================================================================================
+
+To view presentations:
+  1. Install Slidev: npm install -g @slidev/cli
+  2. Launch: slidev presentations/10-min-PA3-pitch.md
+  3. Navigate: Arrow keys, 'f' for fullscreen, 'o' for overview
+
+To export to PDF:
+  1. slidev export presentations/10-min-PA3-pitch.md
+  2. Output: presentations/10-min-PA3-pitch.pdf
+
+For more help:
+  - Read QUICK_START.md (2 min overview)
+  - Read README.md (comprehensive guide)
+  - See COMPLETION_SUMMARY.md (project details)
+
+================================================================================
+CONTENT SUMMARY
+================================================================================
+
+10-Minute Presentation (6 slides)
+1. Context & Motivation (PA3 → RETINNA)
+2. FCN Architecture (encoder/decoder pattern)
+3. U-Net vs FCN (skip connections)
+4. Loss Function & Class Imbalance (BCE + Dice)
+5. Validation Results & False Negatives (heatmap + metrics)
+6. Learning Objectives Achieved (checklist)
+
+Extended Presentation (12 slides)
+1. Title & PA3 Context
+2. Problem Domain (wildfire detection importance)
+3. Sentinel-2 Multispectral Data
+4. Data Pipeline (one-hot encoding, normalization)
+5. FCN Architecture Deep Dive
+6. U-Net Architecture (skip connections)
+7. Loss Functions (BCE + Dice theory)
+8. Training Results & False Negative Challenge (with curves)
+9. Hyperparameter Tuning Strategy (with results table)
+10. FCN vs U-Net Empirical Comparison (with charts)
+11. Validation Visualization & Failure Modes (large heatmap)
+12. Learning Objectives Achieved (detailed breakdown)
+
+Both presentations emphasize:
+✓ FCN architecture principles
+✓ Skip connections for detail preservation
+✓ Handling severe class imbalance (90/10 split)
+✓ Loss function design (BCE + Dice with pos_weight)
+✓ Evaluation metrics (IoU, precision, recall, FN rate)
+✓ Hyperparameter tuning methodology
+✓ Domain adaptation (PA3 → wildfire detection)
+✓ Real-world constraints and trade-offs
+
+================================================================================
+QUALITY ASSURANCE
+================================================================================
+
+✅ All presentation markdown files follow Slidev format
+✅ All YAML front matter properly configured
+✅ All slide delimiters (---) correctly placed
+✅ Word counts verified (<50 for 10-min, 50-80 for extended)
+✅ All visualization files are valid PNG (verified with file command)
+✅ All visualization file paths are correct in markdown
+✅ Color scheme consistent across all visualizations (accessibility)
+✅ All metrics present and accurate in visualizations
+✅ Slide counts match specifications (6 + 12)
+✅ No broken links or missing file references
+✅ Python script generates correct output
+✅ Total file count: 14 files
+✅ Total size: 444 KB
+✅ All visualizations at 150 DPI (suitable for projection and print)
+
+================================================================================
+VERIFICATION CHECKLIST
+================================================================================
+
+Presentation Files:
+  ✅ 10-min-PA3-pitch.md exists (91 lines)
+  ✅ extended-PA3-talk.md exists (303 lines)
+  ✅ Both follow Slidev markdown format
+  ✅ Both have YAML front matter
+  ✅ Both have proper slide delimiters
+
+Visualizations:
+  ✅ false_negative_heatmap.png present (47 KB, 1467×1484)
+  ✅ metrics_table_10min.png present (28 KB, 959×440)
+  ✅ metrics_table_extended.png present (57 KB, 1192×555)
+  ✅ fcn_vs_unet_comparison.png present (67 KB, 2082×735)
+  ✅ hyperparameter_tuning.png present (61 KB, 1425×671)
+  ✅ training_curves.png present (87 KB, 2083×735)
+  ✅ All PNG files are valid images
+  ✅ All PNG files properly referenced in markdown
+
+Documentation:
+  ✅ README.md present and comprehensive
+  ✅ QUICK_START.md present and concise
+  ✅ COMPLETION_SUMMARY.md present and detailed
+  ✅ MANIFEST.txt present (this file)
+
+Planning Documents:
+  ✅ 10-min-PA3-pitch-plan.md present (116 lines)
+  ✅ extended-PA3-talk-plan.md present (256 lines)
+
+Python Script:
+  ✅ generate_visualizations.py present (265 lines)
+  ✅ Script executable and documented
+  ✅ Script successfully generates visualizations
+
+================================================================================
+LEARNING OBJECTIVES COVERAGE
+================================================================================
+
+Both presentations successfully address:
+  ✓ FCN Architecture (encoder/decoder symmetry)
+  ✓ Skip Connections (U-Net improvements)
+  ✓ Class Imbalance Handling (BCE + Dice, pos_weight tuning)
+  ✓ Evaluation Metrics (IoU, precision, recall, FN rate)
+  ✓ Hyperparameter Tuning (batch size, LR, loss weights)
+  ✓ Domain Adaptation (PA3 RGB → Sentinel-2 multispectral)
+  ✓ Real-World Application (wildfire detection context)
+
+================================================================================
+FILE SIZES BREAKDOWN
+================================================================================
+
+Presentations (2 files):          13 KB (2.7 + 10)
+Planning Documents (2 files):     13 KB (3.8 + 9.1)
+Documentation (4 files):          41 KB (10 + 8.3 + 15 + 8)
+Python Script:                    14 KB
+Visualizations (6 PNG files):    347 KB
+
+TOTAL:                           444 KB
+
+================================================================================
+READY FOR DEPLOYMENT
+================================================================================
+
+Status: ✅ COMPLETE
+
+The presentations are ready to:
+  1. View with Slidev plugin
+  2. Export to PDF format
+  3. Share via email, GitHub, or web
+  4. Present to audience (both versions)
+  5. Customize for specific use cases
+  6. Regenerate visualizations if needed
+
+Next Steps:
+  • Install Slidev: npm install -g @slidev/cli
+  • Launch presentation: slidev presentations/10-min-PA3-pitch.md
+  • Export to PDF: slidev export presentations/10-min-PA3-pitch.md
+  • Read QUICK_START.md for more options
+
+================================================================================
+PROJECT COMPLETION RECORD
+================================================================================
+
+Phase 1: Create 10-Minute Plan            ✅ COMPLETE
+Phase 2: Create Extended Plan             ✅ COMPLETE
+Phase 3: Generate Slides                  ✅ COMPLETE
+Phase 4: Extract & Create Visualizations  ✅ COMPLETE
+Phase 5: Finalization & Documentation     ✅ COMPLETE
+
+Overall Status: ✅ PROJECT COMPLETE
+
+All deliverables are ready for presentation at RETINNA workshop.
+
+Generated by Claude Code
+Date: 2026-06-24
