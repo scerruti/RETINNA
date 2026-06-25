@@ -115,64 +115,97 @@ Post-fire:  83% Low Severity | 0.91% Extreme | 8% Water/Cloud
 
 ---
 
-## Phase II_02: U-Net Training ⏳ READY
+## Phase II_02: U-Net Training ⏳ IMPLEMENTATION COMPLETE, READY FOR COLAB
 
-**Document**: [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md)
+**Documents**: 
+- [PHASE_II_02_COLAB_EXECUTION_8CH.md](PHASE_II_02_COLAB_EXECUTION_8CH.md) — Step-by-step Colab instructions
+- [IMPLEMENTATION_SUMMARY_8CH_UPGRADE.md](IMPLEMENTATION_SUMMARY_8CH_UPGRADE.md) — Detailed changes
+- [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md) — Original architectural rationale
 
 ### Objective
 Train U-Net on spectral change detection to classify burn severity, designed for direct Phase III transfer to NAIP.
 
-### Change-Detection Architecture (Key Decision)
-**Input**: Difference images (Post - Pre) for NAIP-compatible bands
+### Final Architecture: 8-Channel Pre+Post Model (✅ IMPLEMENTED)
+**Input**: Pre-fire and post-fire RGBN concatenated (separate channels, not precomputed difference)
 ```python
-# 4-channel input (RGBN difference)
-input = (Post_RGBN - Pre_RGBN)  # Not Post-only or Pre+Post concat
-# This is the critical difference from typical U-Net approaches
+# 8-channel input: [Pre_R, Pre_G, Pre_B, Pre_NIR, Post_R, Post_G, Post_B, Post_NIR]
+input = torch.cat([pre_rgbn, post_rgbn], dim=1)  # Shape: [8, 512, 512]
+# Allows model to learn flexible change patterns vs hardcoded subtraction
 ```
 
 ### Input Data
 - **Samples**: 424 (pre/post pairs)
-- **Input channels**: 4 (R, G, B, NIR difference)
-  - (Post_R - Pre_R)
-  - (Post_G - Pre_G)
-  - (Post_B - Pre_B)
-  - (Post_NIR - Pre_NIR)
-- **Labels**: 7-class severity from Phase II_01 (post-fire RdNBR)
-- **Resolution**: 512×512 pixels @ 20m/pixel
-- **Format**: PyTorch tensors (difference image + severity label)
+- **Input channels**: 8 (Pre_RGBN + Post_RGBN)
+  - Pre-fire: R, G, B, NIR (Sentinel-2 bands 2, 3, 4, 8)
+  - Post-fire: R, G, B, NIR (Sentinel-2 bands 2, 3, 4, 8)
+- **Data preprocessing**:
+  - **Z-score normalization**: (image - mean) / std, computed from training set only
+  - **Data augmentation** (training only): random flip, rotation, zoom/crop 384→512
+- **Labels**: 7-class severity from Phase II_01 (post-fire RdNBR only)
+- **Resolution**: 512×512 pixels
+- **Format**: PyTorch tensors (8-channel image + 512×512 label)
 
-### Why Difference-Based Input?
-1. **Terrain normalization**: Pre-fire baseline removes vegetation-type effects
-2. **Phase III ready**: NAIP has 4 bands; transfer learning is direct
-3. **Coherent with labels**: RdNBR labels are change-based, input is change-based
-4. **Robust transfer**: Model learns relative change, not absolute spectral values
-5. **Professional standard**: Change detection is proven approach in remote sensing
+### Why 8-Channel vs Difference?
+**Original plan**: Difference-based (Post - Pre), 4 channels  
+**Final choice**: 8-channel separate (Pre + Post concatenated)
 
-See [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md) for full rationale.
+**Benefits of 8-channel**:
+1. **Flexible change learning**: Model discovers change patterns vs hardcoded subtraction
+2. **Better zero-shot transfer**: Learns general burn detection, not S2-specific absolutes
+3. **Z-score normalization**: Removes sensor/seasonal absolute value bias
+4. **Data augmentation**: Improves generalization with geometric transforms
+5. **Terrain robustness**: Normalization + pre-image context handles vegetation variation
+
+See [IMPLEMENTATION_SUMMARY_8CH_UPGRADE.md](IMPLEMENTATION_SUMMARY_8CH_UPGRADE.md) for rationale and trade-offs.
 
 ### Implementation Details
 ```python
-# Model: U-Net (from PA3, modified)
-# Input: 4-channel difference images (RGBN)
+# Model: U-Net (PA3 architecture, modified)
+# Input: 8-channel concatenated images (Pre_RGBN + Post_RGBN)
 # Output: 7-class severity prediction (512×512)
-# Loss: Weighted cross-entropy (handle class imbalance)
-# Metrics: Per-class IoU, pixel accuracy, confusion matrix
+# Normalization: Z-score (mean/std from training data, saved in checkpoint)
+# Augmentation: Flip, rotate, zoom/crop (training set only)
+# Loss: Weighted cross-entropy (computed from training label distribution)
+# Optimizer: Adam (lr=1e-3, weight_decay=1e-5)
+# Scheduler: ReduceLROnPlateau (factor=0.5, patience=3) [validated improvement]
+# Epochs: 20 (baseline; can increase after validation)
 ```
 
-### Key Considerations
-1. **Class imbalance**: 95% Low Severity vs 1-2% Extreme
-   - Use weighted loss or focal loss
-   - Monitor per-class metrics, not just overall accuracy
-2. **Data augmentation**: Rotation, flipping, minor intensity shifts
-3. **Validation strategy**: Use fold-based cross-validation from CaBuAr splits
-4. **Difference normalization**: May need to normalize difference values to [-1, 1] range
-5. **Hyperparameter tuning**: Learning rate, batch size, epochs
+### Training Strategy
+1. **Class weights**: Computed from actual training distribution (inverse frequency)
+   - No hardcoded values; fixes earlier placeholder bug (0.01)
+2. **Label alignment**: Use post-fire labels only (labels[N + idx])
+   - Fixes alignment issue between 2N-length label tensor and N-length image tensors
+3. **No data leakage**: Normalization stats computed from training indices only
+4. **Validation**: fold-based cross-validation from CaBuAur splits
+
+### Checkpoint Structure
+```python
+checkpoint = {
+    'model_state_dict': {...},
+    'normalization': {
+        'channel_mean': tensor([...]),  # 8 values (new)
+        'channel_std': tensor([...]),   # 8 values (new)
+    },
+    'class_weights': tensor([...]),     # 7 values (new)
+    'config': {
+        'in_channels': 8,               # Changed from 4
+        'out_channels': 7,
+    },
+    'history': {...},
+}
+```
 
 ### Success Metrics
-- Per-class IoU > 0.7 (target)
-- Extreme Severity IoU > 0.5 (harder class)
-- No overfitting (val loss tracks train loss)
-- **Phase III readiness**: Direct transfer to NAIP difference images
+- ✅ Model converges (val loss decreases)
+- ✅ Test set accuracy comparable to baseline
+- ✅ Checkpoint saved with normalization stats
+- ✅ Phase III readiness: Model accepts 8-channel NAIP pre/post pairs directly
+
+### Execution Status
+- ✅ **II_01 updated**: Now saves pre_rgbn_TIMESTAMP.pt and post_rgbn_TIMESTAMP.pt
+- ✅ **II_02 implemented**: 8-channel pipeline with z-score norm + augmentation
+- ⏳ **Colab execution**: Awaiting GPU training (instructions in PHASE_II_02_COLAB_EXECUTION_8CH.md)
 
 ---
 

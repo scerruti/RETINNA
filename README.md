@@ -142,14 +142,31 @@ See [TRAINING_PROCESS.md](docs/TRAINING_PROCESS.md) for detailed configuration o
 
 ## Project Status
 
-**Day 3 (In Progress):**
-- ✅ Data pipeline with CaBuAr dataset and Google Drive caching
-- ✅ U-Net architecture (31M parameters) with skip connections
-- ✅ Training script with BCE+Dice loss and checkpoint management
-- ✅ Training notebooks (01-05) with interactive epochs slider
-- 🔄 Baseline model training and evaluation
+**Phase II: Spectral Relabeling & U-Net Training (In Progress)**
 
-Track progress using sprint issues in the repository: [Issues](https://github.com/scerruti/RETINNA/issues)
+### Completed ✅
+- **Phase II_01**: Spectral relabeling using RdNBR (7-class severity labels generated)
+- **Phase II_03**: Metadata extraction (298 fires, 534 samples catalogued)
+- **Phase II_02 Implementation**: 8-channel U-Net with z-score normalization + augmentation (awaiting Colab GPU execution)
+
+### In Progress ⏳
+- Phase II_02 Colab Training: Run II_01 and II_02 notebooks on Colab GPU
+- Test set evaluation and comparison to baseline
+
+### Architecture Evolution
+- **Initial approach (PA3)**: 4-channel difference model (Post - Pre)
+- **Current approach (Phase II_02)**: 8-channel separate images (Pre + Post concatenated) with z-score normalization
+  - Enables flexible change detection learning
+  - Better generalization to NAIP imagery in Phase III
+  - Data augmentation (flip, rotate, zoom/crop)
+
+### Next Steps
+1. Execute Phase II_02 on Colab (5-10 min II_01 + 20-30 min II_02 training)
+2. Evaluate test set performance
+3. Prepare Phase III NAIP inference pipeline
+
+**Documentation**: See [docs/PHASE_II_INDEX.md](docs/PHASE_II_INDEX.md) for complete Phase II overview.  
+**Execution Guide**: [docs/PHASE_II_02_COLAB_EXECUTION_8CH.md](docs/PHASE_II_02_COLAB_EXECUTION_8CH.md)
 
 ## References
 

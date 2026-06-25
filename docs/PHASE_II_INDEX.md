@@ -1,6 +1,6 @@
 # Phase II Documentation Index
 
-**Phase II Status**: 50% Complete (II_01 ✅, II_02 ⏳, II_03 ✅)
+**Phase II Status**: Implementation Complete (II_01 ✅, II_02 ✅ Ready for Colab, II_03 ✅)
 
 ---
 
@@ -60,20 +60,39 @@
 
 ## Phase II_02: U-Net Training
 
-### [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md)
-**Architecture decision: Change-detection input for Phase III transfer**
-- Why difference-based input (Post - Pre)
-- NAIP-compatible band selection (4 channels)
-- Coherence with Phase II_01 RdNBR labels
-- Trade-offs and Phase III transfer strategy
+### [PHASE_II_02_COLAB_EXECUTION_8CH.md](PHASE_II_02_COLAB_EXECUTION_8CH.md) ⭐ **START HERE FOR EXECUTION**
+**Step-by-step Colab instructions for running both notebooks**
+- Run II_01 to generate pre/post RGBN tensors
+- Run II_02 to train 8-channel model with augmentation
+- Verify checkpoint structure and normalization stats
+- Troubleshooting guide
 
-### Implementation: [II_02_unet_training.ipynb](../notebooks/II_02_unet_training.ipynb)
-**U-Net training notebook (ready to run on Colab)**
-- Change-detection dataset loader
-- U-Net architecture (4 → 7 classes)
-- Weighted cross-entropy loss for class imbalance
-- Training loop with validation
-- Model saving and Phase III readiness verification
+### [IMPLEMENTATION_SUMMARY_8CH_UPGRADE.md](IMPLEMENTATION_SUMMARY_8CH_UPGRADE.md)
+**Detailed summary of all changes from 4-channel to 8-channel**
+- ChangeDetectionDataset class (8-channel concatenation, z-score norm, augmentation)
+- U-Net model update (in_channels 4→8)
+- Z-score normalization (training-stats only, no data leakage)
+- Class weight computation (from actual distribution, not hardcoded)
+- Label alignment fix (use post-fire labels only)
+- Checkpoint enhancement (normalization stats embedded)
+- Data flow diagrams before/after
+
+### [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md)
+**Original architectural rationale (context, now superseded)**
+- Initial analysis of difference-based vs other inputs
+- NAIP transfer strategy
+- Trade-offs considered
+- Note: Superseded by 8-channel decision documented above
+
+### Implementation: [II_02_unet_training.ipynb](../notebooks/II_02_unet_training.ipynb) ✅
+**U-Net training notebook (updated and ready on Colab)**
+- 8-channel dataset loader (pre_rgbn + post_rgbn concatenated)
+- Z-score normalization from training stats
+- Data augmentation: flip, rotate, zoom/crop
+- U-Net architecture (8 → 7 classes)
+- Weighted cross-entropy loss (computed from distribution)
+- Training loop with ReduceLROnPlateau scheduler
+- Model saving with normalization stats embedded
 
 ---
 
