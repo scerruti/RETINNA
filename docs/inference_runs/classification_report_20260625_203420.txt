@@ -1,0 +1,62 @@
+Detailed Classification Report - 8-Channel U-Net on Test Set
+==============================================================
+
+Date: 2026-06-25
+Model: unet_model_20260625_201329.pt
+Test samples: 68 fires
+Test pixels: 17,825,792
+
+
+Per-Class Metrics
+-----------------
+
+              precision    recall  f1-score   support
+
+    Unburned       0.00      0.00      0.00       128
+Low Severity       0.98      0.86      0.92  14805762
+    Moderate       0.00      0.00      0.00    428606
+        High       0.00      0.00      0.00     27591
+     Extreme       0.04      0.31      0.06    161836
+       Water       0.43      0.56      0.49   1405126
+       Cloud       0.61      0.91      0.73    996743
+
+    accuracy                           0.82  17825792
+   macro avg       0.29      0.38      0.31  17825792
+weighted avg       0.88      0.82      0.84  17825792
+
+
+Key Findings
+------------
+
+Overall Pixel Accuracy: 0.8158 (81.58%)
+Macro-Averaged IoU: 0.2535
+Weighted-Averaged F1: 0.84
+
+Critical Issue - Extreme Severity Detection:
+  Precision: 0.04 (when model predicts Extreme, it's wrong 96% of the time)
+  Recall: 0.31 (model only finds 31% of actual Extreme pixels)
+  F1-Score: 0.06 (very poor)
+
+Best Performing Classes:
+  1. Cloud: F1=0.73, Recall=0.91
+  2. Low Severity: F1=0.92, Recall=0.86
+  3. Water: F1=0.49, Recall=0.56
+
+Complete Failures:
+  - Unburned: 0% accuracy (0/128 correct)
+  - Moderate: 0% accuracy (0/428,606 correct)
+  - High: 0% accuracy (0/27,591 correct)
+
+Interpretation
+--------------
+
+The model has learned primarily to identify the majority class (Low Severity,
+83% of pixels). Due to severe class imbalance and insufficient class weighting:
+
+1. Minority classes (Unburned, Moderate, High) are never predicted
+2. Extreme severity (critical for burn assessment) has only 31% recall
+3. Overall accuracy (82%) is misleading—model succeeds on majority class only
+4. Macro-averaged metrics (29% precision, 38% recall) show true multi-class performance
+
+This indicates the 8-channel architecture with augmentation and current class
+weighting is insufficient for the burn severity classification task.

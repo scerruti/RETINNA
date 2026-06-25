@@ -1,0 +1,26 @@
+{
+  "timestamp": "20260625_203420",
+  "model_checkpoint": "unet_model_20260625_201329.pt",
+  "overall_accuracy": 0.8158489676082835,
+  "per_class_accuracy": {
+    "Unburned": 0.0,
+    "Low Severity": 0.8644222431780276,
+    "Moderate": 0.0,
+    "High": 0.0,
+    "Extreme": 0.31188363528510343,
+    "Water": 0.5633950264958445,
+    "Cloud": 0.905558403720919
+  },
+  "per_class_iou": {
+    "Unburned": 0.0,
+    "Low Severity": 0.847658589056829,
+    "Moderate": 0.0,
+    "High": 0.0,
+    "Extreme": 0.03340799398478723,
+    "Water": 0.32090427405654126,
+    "Cloud": 0.5727959537884052
+  },
+  "macro_iou": 0.25353811584093755,
+  "test_samples": 68,
+  "test_pixels": 17825792
+}

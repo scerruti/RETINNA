@@ -1,0 +1,132 @@
+Inference Evaluation Summary
+============================
+
+Model: II_02 8-Channel U-Net with Z-Score Normalization & Augmentation
+Checkpoint: unet_model_20260625_201329.pt
+Evaluation Date: 2026-06-25
+Test Set: 68 fire events, 17,825,792 pixels
+
+
+Overall Performance
+-------------------
+
+Pixel Accuracy: 0.8158 (81.58%)
+Macro-Averaged IoU: 0.2535
+Macro-Averaged Precision: 0.29
+Macro-Averaged Recall: 0.38
+Macro-Averaged F1: 0.31
+
+Weighted-Averaged F1: 0.84
+Weighted-Averaged Precision: 0.88
+Weighted-Averaged Recall: 0.82
+
+
+Critical Metric - Extreme Severity Detection
+----------------------------------------------
+
+This is the most important class for burn severity assessment.
+
+Extreme Class Accuracy: 0.3119 (31.19%)
+Extreme Class IoU: 0.0334
+Extreme Class Precision: 0.04
+Extreme Class Recall: 0.31
+Extreme Class F1: 0.06
+
+Interpretation: Model correctly identifies only 31% of extreme burns.
+When it predicts "extreme," it's wrong 96% of the time. This is
+insufficient for operational burn severity assessment.
+
+
+Class Performance Ranking
+--------------------------
+
+Excellent (F1 > 0.70):
+  1. Cloud: F1=0.73, Recall=0.91, Precision=0.61
+
+Good (F1 > 0.50):
+  2. Low Severity: F1=0.92, Recall=0.86, Precision=0.98
+
+Fair (F1 > 0.30):
+  3. Water: F1=0.49, Recall=0.56, Precision=0.43
+
+Poor (F1 < 0.30):
+  4. Extreme: F1=0.06, Recall=0.31, Precision=0.04
+
+Failed (No predictions):
+  5. Unburned: F1=0.00 (0/128 correct)
+  6. Moderate: F1=0.00 (0/428,606 correct)
+  7. High: F1=0.00 (0/27,591 correct)
+
+
+Root Cause Analysis
+-------------------
+
+Class Imbalance in Test Set:
+  - Low Severity: 14,805,762 px (83%)
+  - Water: 1,405,126 px (8%)
+  - Cloud: 996,743 px (6%)
+  - Extreme: 161,836 px (0.9%) ← CRITICAL, UNDERREPRESENTED
+  - Moderate: 428,606 px (2.4%)
+  - High: 27,591 px (0.2%)
+  - Unburned: 128 px (0.0%)
+
+Effect on Model:
+  The model learned to predict "Low Severity" as the default safe strategy
+  because it represents 83% of training data. Weighted cross-entropy loss
+  and z-score normalization were insufficient to overcome the imbalance.
+
+  Minority classes (Extreme, High, Moderate, Unburned) are treated as noise.
+
+
+Comparison to Baseline (4-Channel Difference Model)
+---------------------------------------------------
+
+8-Channel Model Performance:
+  - Overall Accuracy: 81.58%
+  - Extreme Class Recall: 31%
+  - Macro F1: 0.31
+
+Expected Baseline Performance:
+  - Overall Accuracy: 88.36% (from validation)
+  - Extreme Class Recall: Unknown (need baseline inference)
+  - Macro F1: Unknown
+
+Preliminary Assessment: 8-channel model underperforms on overall accuracy
+and likely performs worse on minority classes. The architectural change did
+not improve the critical task (Extreme severity detection).
+
+
+Recommendations for Improvement
+--------------------------------
+
+1. Address Class Imbalance (High Priority):
+   - Focal loss (α=0.25, γ=2.0) instead of weighted cross-entropy
+   - Oversampling minority classes during training
+   - Rebalanced datasets or stratified sampling
+
+2. Improve Extreme Detection:
+   - Class weighting: increase weight of Extreme class further
+   - Weighted dice loss or Tversky loss designed for imbalance
+   - Custom loss function penalizing Extreme misclassification
+
+3. Architecture Considerations:
+   - Revert to 4-channel difference model (appears to perform better)
+   - Or keep 8-channel but fix loss function/weighting
+
+4. Data Augmentation Tuning:
+   - Current augmentation (flip, rotate, zoom/crop) may be hurting performance
+   - Consider less aggressive augmentation for imbalanced data
+   - Augment minority classes specifically
+
+5. Validation Strategy:
+   - Run baseline 4-channel inference for direct comparison
+   - Check if problem is architectural or just loss/weighting
+
+
+Next Steps
+----------
+
+1. Run inference on baseline 4-channel model (for comparison)
+2. Test focal loss on current 8-channel architecture
+3. Decide: keep 8-channel (with better loss) or revert to 4-channel baseline
+4. Prepare for Phase III NAIP transfer with best-performing model
