@@ -133,7 +133,75 @@ to a local optimum: "always predict Low Severity."
 
 ---
 
-## Options for Further Improvement (If Focal Loss Insufficient)
+## Iteration 4: 8-Channel with Data Rebalancing (WeightedRandomSampler)
+**Status**: IN PROGRESS
+
+**Date**: 2026-06-25  
+**Model**: Retraining with same architecture, new sampling strategy
+
+### Changes Made
+
+**Sampling Strategy**: Switched from random shuffle to WeightedRandomSampler
+```python
+# Compute per-sample weights based on class composition
+for idx in train_dataset.indices:
+    label = labels[N + idx]
+    pixel_weights = class_weights[label.flatten()]
+    avg_weight = pixel_weights.mean()
+    sample_weights.append(avg_weight)
+
+# Use WeightedRandomSampler in DataLoader
+sampler = WeightedRandomSampler(
+    weights=sample_weights,
+    num_samples=len(sample_weights),
+    replacement=True
+)
+train_loader = DataLoader(train_dataset, batch_size=4, sampler=sampler, ...)
+```
+
+**Why This Approach**:
+1. **Root cause identified**: Class imbalance in *training batches* caused model to default to majority class
+2. **Focal Loss abandoned**: Implementation attempts failed multiple times; CE loss + rebalancing is proven approach
+3. **Mechanism**: 
+   - Samples with more minority-class pixels get higher weight
+   - WeightedRandomSampler oversamples these samples
+   - Batches have higher proportion of rare classes
+   - Model learns to detect all classes, not just majority
+
+### Loss Function (Unchanged)
+- **Criterion**: CrossEntropyLoss with computed class weights
+- **Why CE loss**: It works correctly when data is balanced; iteration 2 failure was due to imbalance, not loss design
+- **Class weights**: Inverse frequency, normalized to mean=1 (computed from training distribution)
+
+### Expected Improvements
+
+**Primary Goal**: Improve minority class detection
+- Target Extreme Recall: 50-70% (from 31%)
+- Target Extreme F1: 0.30-0.50 (from 0.06)
+- Target Moderate/High/Unburned: non-zero performance (from 0%)
+
+**Secondary**: Maintain majority class performance
+- Keep Low Severity recall ≥ 80%
+- Keep Cloud recall ≥ 85%
+
+### Hyperparameters (Unchanged)
+- Learning rate: 1e-3 with ReduceLROnPlateau
+- Augmentation: Flip, rotate, zoom/crop (unchanged)
+- Batch size: 4
+- Epochs: 20
+- Optimizer: Adam
+- Scheduler: ReduceLROnPlateau (factor=0.5, patience=3)
+
+### Success Criteria
+1. ✅ Extreme recall ≥ 50%
+2. ✅ Extreme F1 ≥ 0.25
+3. ✅ Low Severity recall ≥ 80%
+4. ✅ Overall macro F1 ≥ 0.40
+5. ✅ At least one of {Moderate, High, Unburned} achieves >0% recall
+
+---
+
+## Options for Further Improvement (If Data Rebalancing Insufficient)
 
 ### Option A: Data Rebalancing (Medium Effort)
 **Cost**: Retrain (~30 min GPU)  
@@ -221,13 +289,13 @@ Aggressive: γ=3.0, α=increased_extreme_weight
 
 ## Tracking
 
-| Iteration | Date | Loss Function | Extreme Recall | Overall Accuracy | Status |
-|-----------|------|---------------|-----------------|------------------|--------|
-| 1 (4ch) | 2026-06-25 | CE + weights | Unknown | Unknown | Baseline (need inference) |
-| 2 (8ch) | 2026-06-25 | CE + weights | 31% | 81.6% | **UNDERPERFORMING** |
-| 3 (8ch+focal) | 2026-06-25 | Focal | TBD | TBD | IN PROGRESS |
-| 4 (8ch+focal+rebal) | TBD | Focal | TBD | TBD | CONDITIONAL |
-| 5 (8ch+hybrid) | TBD | Focal+Dice | TBD | TBD | CONDITIONAL |
+| Iteration | Date | Loss Function | Sampling Strategy | Extreme Recall | Overall Accuracy | Status |
+|-----------|------|---------------|-------------------|-----------------|------------------|--------|
+| 1 (4ch) | 2026-06-25 | CE + weights | Random | Unknown | Unknown | Baseline (need inference) |
+| 2 (8ch) | 2026-06-25 | CE + weights | Random | 31% | 81.6% | **UNDERPERFORMING** |
+| 3 (8ch+focal) | 2026-06-25 | Focal | Random | FAILED | FAILED | ABANDONED |
+| 4 (8ch+rebal) | 2026-06-25 | CE + weights | WeightedRandomSampler | TBD | TBD | IN PROGRESS |
+| 5 (8ch+hybrid) | TBD | Focal+Dice | Weighted | TBD | TBD | CONDITIONAL |
 
 ---
 
