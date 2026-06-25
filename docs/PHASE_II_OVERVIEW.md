@@ -39,8 +39,10 @@
 3: High Severity (-0.27 < dNBR ≤ -0.1)
 4: Extreme Severity (dNBR < -0.27)
 5: Water (MNDWI > 0.3)
-6: Cloud/Shadow (SCL classification)
+6: Cloud/Shadow (spectral detection: Blue > 0.25 AND Blue/NIR > 0.8)
 ```
+
+**⚠️ Note**: CaBuAr dataset does not include Sentinel-2 SCL band in usable form (see [DATA_LOADING_BUG_FIX.md](phase2_investigation/DATA_LOADING_BUG_FIX.md)). Cloud detection uses spectral thresholds instead, which generalizes to NAIP and other sensors.
 
 **Metrics Saved**:
 - Class distribution per split
