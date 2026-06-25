@@ -60,8 +60,20 @@
 
 ## Phase II_02: U-Net Training
 
-### Roadmap Only (Under Development)
-See [PHASE_II_MASTER.md](PHASE_II_MASTER.md#phase-ii_02-u-net-training--ready) for training requirements and strategy.
+### [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md)
+**Architecture decision: Change-detection input for Phase III transfer**
+- Why difference-based input (Post - Pre)
+- NAIP-compatible band selection (4 channels)
+- Coherence with Phase II_01 RdNBR labels
+- Trade-offs and Phase III transfer strategy
+
+### Implementation: [II_02_unet_training.ipynb](../notebooks/II_02_unet_training.ipynb)
+**U-Net training notebook (ready to run on Colab)**
+- Change-detection dataset loader
+- U-Net architecture (4 → 7 classes)
+- Weighted cross-entropy loss for class imbalance
+- Training loop with validation
+- Model saving and Phase III readiness verification
 
 ---
 

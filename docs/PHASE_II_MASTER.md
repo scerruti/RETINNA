@@ -117,21 +117,43 @@ Post-fire:  83% Low Severity | 0.91% Extreme | 8% Water/Cloud
 
 ## Phase II_02: U-Net Training ⏳ READY
 
-**Document**: (To be created)
+**Document**: [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md)
 
 ### Objective
-Train U-Net segmentation model on 848 labeled images with 7-class burn severity.
+Train U-Net on spectral change detection to classify burn severity, designed for direct Phase III transfer to NAIP.
+
+### Change-Detection Architecture (Key Decision)
+**Input**: Difference images (Post - Pre) for NAIP-compatible bands
+```python
+# 4-channel input (RGBN difference)
+input = (Post_RGBN - Pre_RGBN)  # Not Post-only or Pre+Post concat
+# This is the critical difference from typical U-Net approaches
+```
 
 ### Input Data
-- **Images**: 848 Sentinel-2 images (424 samples × 2 for pre+post)
-- **Labels**: 7-class severity predictions from II_01
+- **Samples**: 424 (pre/post pairs)
+- **Input channels**: 4 (R, G, B, NIR difference)
+  - (Post_R - Pre_R)
+  - (Post_G - Pre_G)
+  - (Post_B - Pre_B)
+  - (Post_NIR - Pre_NIR)
+- **Labels**: 7-class severity from Phase II_01 (post-fire RdNBR)
 - **Resolution**: 512×512 pixels @ 20m/pixel
-- **Format**: PyTorch tensors (image + label pairs)
+- **Format**: PyTorch tensors (difference image + severity label)
 
-### Expected Implementation
+### Why Difference-Based Input?
+1. **Terrain normalization**: Pre-fire baseline removes vegetation-type effects
+2. **Phase III ready**: NAIP has 4 bands; transfer learning is direct
+3. **Coherent with labels**: RdNBR labels are change-based, input is change-based
+4. **Robust transfer**: Model learns relative change, not absolute spectral values
+5. **Professional standard**: Change detection is proven approach in remote sensing
+
+See [PHASE_II_02_CHANGE_DETECTION_STRATEGY.md](PHASE_II_02_CHANGE_DETECTION_STRATEGY.md) for full rationale.
+
+### Implementation Details
 ```python
-# Model: U-Net (from PA3)
-# Input: 12-band Sentinel-2 (normalized)
+# Model: U-Net (from PA3, modified)
+# Input: 4-channel difference images (RGBN)
 # Output: 7-class severity prediction (512×512)
 # Loss: Weighted cross-entropy (handle class imbalance)
 # Metrics: Per-class IoU, pixel accuracy, confusion matrix
@@ -143,12 +165,14 @@ Train U-Net segmentation model on 848 labeled images with 7-class burn severity.
    - Monitor per-class metrics, not just overall accuracy
 2. **Data augmentation**: Rotation, flipping, minor intensity shifts
 3. **Validation strategy**: Use fold-based cross-validation from CaBuAr splits
-4. **Hyperparameter tuning**: Learning rate, batch size, epochs
+4. **Difference normalization**: May need to normalize difference values to [-1, 1] range
+5. **Hyperparameter tuning**: Learning rate, batch size, epochs
 
 ### Success Metrics
 - Per-class IoU > 0.7 (target)
 - Extreme Severity IoU > 0.5 (harder class)
 - No overfitting (val loss tracks train loss)
+- **Phase III readiness**: Direct transfer to NAIP difference images
 
 ---
 
