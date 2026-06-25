@@ -1,0 +1,451 @@
+================================================================================
+RETINNA 10-MINUTE BOOTCAMP PRESENTATION
+Option C: Auctioneer Delivery (Fast, High-Impact Visuals)
+================================================================================
+
+FILE: bootcamp_10min_option_c.md
+LOCATION: /Users/scerruti/RETINNA/presentations/
+STATUS: READY FOR DELIVERY (2026-06-25)
+
+================================================================================
+QUICK LAUNCH
+================================================================================
+
+1. Install Slidev (if needed):
+   npm install -D slidev
+
+2. Launch presentation:
+   slidev /Users/scerruti/RETINNA/presentations/bootcamp_10min_option_c.md
+
+3. Open in browser (usually auto-opens)
+
+================================================================================
+PRESENTATION ESSENTIALS
+================================================================================
+
+TITLE: "Burn Scar Detection: From Failure to Transfer Learning"
+DURATION: 10 minutes (+ 1 min Q&A buffer)
+SLIDES: 10 content slides + Q&A
+AUDIENCE: PA3 bootcamp evaluation panel
+KEY MESSAGE: "Data is the bottleneck, not the model"
+
+================================================================================
+SLIDE QUICK REFERENCE
+================================================================================
+
+Slide 1 (0:00-0:15)
+  Title: "Burn Scar Detection"
+  Hook: Wanted to detect burn scars, trained a model, it failed in unexpected ways
+  Tone: Intrigue + confidence
+
+Slide 1b (0:15-1:15)
+  Title: "Phase I: U-Net Architecture"
+  Content: 24-channel model, skip connections, why U-Net > FCN
+  Visual: ASCII architecture diagram
+  Key: Explain skip connections (preserve boundary detail)
+
+Slide 2 (1:15-2:15)
+  Title: "Phase I Results & The Discovery"
+  Visual: LOSS_CURVES.PNG (embedded)
+  Key: 0.52 IoU, but hyperparameter tuning made it WORSE
+  Moment: "Red flag—something fundamental is broken"
+
+Slide 3 (2:15-3:45) *** PIVOT POINT ***
+  Title: "The Insight: Why It Failed"
+  Content: Label-data mismatch (administrative vs spectral)
+  Venn diagram showing labels ≠ image data
+  Tone: Slow down, let this sink in
+  Impact: This is where the story turns
+
+Slide 4 (3:45-5:00)
+  Title: "Phase II_01: Analytical Relabeling"
+  Content: RdNBR formula + USGS thresholds
+  Visual: Two-column layout with formula and threshold table
+  Key: Use spectral data to create labels, not administrative boundaries
+
+Slide 5 (5:00-5:50)
+  Title: "Phase II_01 Output: Class Distribution"
+  Content: 7-class distribution (94% Low, 1-2% Extreme, etc.)
+  Key: "Realistic for California chaparral"
+  Validation: Post > Pre confirmed ✓
+
+Slide 6 (5:50-7:00)
+  Title: "Phase II_02: Architecture Redesign"
+  Content: 24-channel → 8-channel (RGBN pre + post)
+  Why: NAIP transfer, flexible learning, normalization
+  Visual: Side-by-side comparison
+
+Slide 7 (7:00-8:00)
+  Title: "Phase II_02 Training Strategy"
+  Content: Loss weights, z-score norm, augmentation, scheduler
+  Visual: Table format
+  Highlight: Scheduler validation (-6.2% val loss, +2.0% acc)
+
+Slide 8 (8:00-9:15)
+  Title: "Results & PA3 Learning Objectives"
+  Visual: TRAINING_HISTORY_WITH_PLATEAU_SCHEDULER.PNG (embedded)
+  Content: 6 PA3 objectives, all checked ✓
+  Key: Results validate the approach
+
+Slide 9 (9:15-10:45) *** IMPACT STATEMENT ***
+  Title: "The Lesson & Next Steps"
+  Central: "Data is the bottleneck, not the model"
+  Tone: Confident, impactful
+  Pause: Before and after the key message
+  Roadmap: Phase III NAIP transfer
+
+Slide 10 (10:45-11:15)
+  Title: "Questions?"
+  Content: Open discussion
+  Be ready for: NAIP transfer, RdNBR, methodology questions
+
+================================================================================
+CRITICAL MOMENTS
+================================================================================
+
+RED FLAG (Slide 2): "Hyperparameter tuning made things WORSE"
+  → Sets up the investigation
+
+PIVOT (Slide 3): "Labels and data don't match"
+  → SLOW DOWN HERE - this is the insight
+  → Venn diagram shows the fundamental problem
+  → Duration: 90 seconds (don't rush)
+
+VALIDATION (Slide 5): "Realistic for California chaparral"
+  → Shows you did your homework
+  → Proves the new approach is sensible
+
+IMPACT (Slide 9): "Data is the bottleneck, not the model"
+  → PAUSE before
+  → Say it clearly
+  → PAUSE after
+  → Let it sink in
+
+================================================================================
+DELIVERY CHECKLIST
+================================================================================
+
+BEFORE PRESENTATION:
+  ☐ Read all speaker notes (full narrative)
+  ☐ Practice timing (should be ~11 min total)
+  ☐ Verify both PNG images load:
+    ☐ loss_curves.png (Phase I baseline)
+    ☐ training_history_with_plateau_scheduler.png (Phase II_02)
+  ☐ Have Slidev running smoothly
+  ☐ Test keyboard shortcuts (arrow keys work, Speaker Notes visible)
+  ☐ Practice Slide 3 (pivot) delivery—this is critical
+  ☐ Have water nearby
+
+DURING PRESENTATION:
+  ☐ Speak slowly and deliberately
+  ☐ Make eye contact with audience
+  ☐ Let charts breathe (don't over-explain)
+  ☐ Use natural pauses
+  ☐ Pause before "Data is the bottleneck"
+  ☐ Watch audience for understanding
+  ☐ Adjust pacing if needed
+  ☐ Stay confident
+
+AFTER PRESENTATION:
+  ☐ Be ready for Q&A (~1 minute buffer)
+  ☐ Don't apologize for the data pivot—it shows rigor
+  ☐ Have answers ready for:
+    ☐ Why 8-channel vs precomputed difference?
+    ☐ How does RdNBR differ from dNBR?
+    ☐ What's the NAIP transfer strategy?
+    ☐ How did you identify the label-data mismatch?
+
+================================================================================
+KEY NUMBERS TO REMEMBER
+================================================================================
+
+Phase I:
+  - 24 channels (2 timesteps × 12 Sentinel-2 bands)
+  - 31.1M parameters
+  - 0.52 IoU (decent baseline)
+  - 0.86 validation accuracy
+  - 20 epochs, ~20 minutes training
+
+Phase II_01:
+  - 424 pre/post sample pairs
+  - 848 images total (pre + post)
+  - 7 severity classes (RdNBR-based)
+  - ~90% Low Severity (realistic for sparse CA vegetation)
+
+Phase II_02:
+  - 8 channels (RGBN × 2: pre + post)
+  - Separate images (not difference-based)
+  - Z-score normalization (per-channel)
+  - Weighted cross-entropy loss (inverse frequency)
+  - ReduceLROnPlateau scheduler
+  - -6.2% validation loss improvement
+  - +2.0% validation accuracy improvement
+
+================================================================================
+SPEAKER NOTES STRUCTURE
+================================================================================
+
+Each slide has detailed speaker notes (~60-90 seconds each):
+
+Opening (~15-20 sec):
+  - Sets context, why this matters
+  - Hook or transition from previous slide
+
+Technical Explanation (~30-50 sec):
+  - What actually happened
+  - Key technical details
+  - Results/findings
+
+Validation (~10-20 sec):
+  - How you verified this
+  - Why this approach is sound
+
+Transition (~5-10 sec):
+  - How this leads to next slide
+  - Setup for next concept
+
+================================================================================
+NARRATIVE ARC
+================================================================================
+
+1. PROBLEM (Slides 1-2)
+   "Built a U-Net, got 0.52 IoU"
+
+2. RED FLAG (Slide 2)
+   "Hyperparameter tuning made it worse"
+
+3. INVESTIGATION (Slide 3)
+   "Discovered label-data mismatch"
+
+4. SOLUTION (Slides 4-6)
+   "Use spectral labels + redesign architecture"
+
+5. IMPLEMENTATION (Slide 7)
+   "Here's the training strategy"
+
+6. VALIDATION (Slides 5, 8)
+   "Results confirm this approach works"
+
+7. SYNTHESIS (Slide 9)
+   "Data is the bottleneck, not the model"
+
+8. NEXT STEPS (Slide 9)
+   "Phase III: NAIP transfer"
+
+9. Q&A (Slide 10)
+   "Questions?"
+
+Total: ~11 minutes
+
+================================================================================
+TONE & DELIVERY STYLE
+================================================================================
+
+OPTION C = AUCTIONEER DELIVERY:
+  ✓ Fast-paced, high-energy
+  ✓ Visuals drive the narrative (not text on slides)
+  ✓ Confident, data-driven tone
+  ✓ Minimal slide text (speaker carries the story)
+  ✓ Let charts speak for themselves
+  ✓ Strategic pauses for impact
+
+DON'T:
+  ✗ Read the slides word-for-word
+  ✗ Over-explain the charts
+  ✗ Rush through important moments
+  ✗ Apologize for the data pivot (it's a strength!)
+  ✗ Go off-script (you have good speaker notes)
+
+DO:
+  ✓ Make eye contact
+  ✓ Speak clearly and confidently
+  ✓ Use natural hand gestures
+  ✓ Let pauses happen naturally
+  ✓ Show enthusiasm for the problem
+  ✓ Be ready to adapt based on audience
+
+================================================================================
+SUPPORTING MATERIALS
+================================================================================
+
+Main Presentation:
+  bootcamp_10min_option_c.md
+
+Quick Guides:
+  bootcamp_10min_README.md — Detailed slide-by-slide breakdown
+  BOOTCAMP_CREATION_SUMMARY.md — Full creation notes
+  INDEX.md — Navigation and overview
+
+Reference Documents:
+  /Users/scerruti/RETINNA/docs/BASELINE_RESULTS.md
+  /Users/scerruti/RETINNA/docs/PHASE_II_MASTER.md
+  /Users/scerruti/RETINNA/docs/ARCHITECTURE_RATIONALE.md
+
+Images (embedded in presentation):
+  /Users/scerruti/RETINNA/docs/training_runs/baseline_24ch_epoch20/loss_curves.png
+  /Users/scerruti/RETINNA/docs/phase4_rgb_ir_training/training_history_with_plateau_scheduler.png
+
+================================================================================
+EVALUATION CRITERIA (What Judges Will Notice)
+================================================================================
+
+Technical Depth:
+  ✓ U-Net architecture explanation (skip connections)
+  ✓ Spectral index understanding (RdNBR vs dNBR)
+  ✓ Loss function design (weighted cross-entropy)
+  ✓ Normalization strategy (z-score)
+  ✓ Validation methodology (fold-based, no leakage)
+
+Problem-Solving:
+  ✓ Identified data quality issue (not obvious)
+  ✓ Proposed and implemented solution
+  ✓ Validated the approach (distribution checks)
+  ✓ Connected to real-world constraint (NAIP transfer)
+
+Communication:
+  ✓ Clear narrative arc (problem → insight → solution → lesson)
+  ✓ Minimal slide text (visual-driven)
+  ✓ Full speaker notes (shows preparation)
+  ✓ Confident delivery
+  ✓ Data-driven conclusions
+
+Design Maturity:
+  ✓ Architecture choices justified by constraints
+  ✓ Data-first thinking (not model-first)
+  ✓ Realistic distribution validation
+  ✓ Transfer learning strategy
+
+================================================================================
+PRACTICE RECOMMENDATIONS
+================================================================================
+
+1. Read speaker notes for ALL slides
+   (Takes ~30 minutes, gives you confidence)
+
+2. Practice Slide 3 (pivot) multiple times
+   This is the emotional core of the presentation
+   It needs to land well
+
+3. Time yourself with a stopwatch
+   Target: 10-11 minutes (not 12+)
+   Budget: 15 sec per intro/outro slide, 60-90 sec per main slide
+
+4. Practice with the actual presentation file
+   Click through slides
+   Test image loading
+   Get comfortable with transitions
+
+5. Record yourself (optional but helpful)
+   Listen back for pace, clarity, filler words
+   Adjust tone/pacing as needed
+
+6. Present to a friend or colleague
+   Get feedback on clarity
+   Ask which moment resonates most
+   Time your delivery
+
+7. Day-of: Arrive early
+   Test Slidev in the actual environment
+   Verify projector/display works
+   Take a few deep breaths
+
+================================================================================
+FREQUENTLY ASKED QUESTIONS
+================================================================================
+
+Q: Why 8-channel instead of precomputed difference?
+A: Three reasons:
+   1. Flexible learning—model discovers change patterns vs hardcoded subtraction
+   2. Z-score normalization removes sensor/seasonal bias
+   3. Data augmentation (flip, rotate, crop) works better with separate images
+
+Q: How does RdNBR differ from dNBR?
+A: RdNBR normalizes by pre-fire vegetation:
+   RdNBR = dNBR / sqrt(|NBRpre|)
+   This prevents sparse vegetation changes from being over-weighted
+   Better for heterogeneous landscapes like California chaparral
+
+Q: What's the NAIP transfer strategy?
+A: NAIP has 4 bands: Red, Green, Blue, NIR (no SWIR)
+   We trained on RGBN only (dropped SWIR)
+   Model sees NAIP-compatible input
+   Zero-shot transfer = no fine-tuning needed
+   Fine-tune = if zero-shot doesn't work
+
+Q: How did you identify the label-data mismatch?
+A: Hyperparameter tuning made performance WORSE
+   That's the red flag
+   Investigated: labels are administrative boundaries (CalFire)
+   Image data is spectral reflectance (Sentinel-2)
+   These don't perfectly align
+   Led to decision: create labels from spectral data instead
+
+Q: Why RdNBR over other spectral indices?
+A: USGS standard for burn severity
+   Proven in literature (Miller & Thode 2007)
+   Accounts for landscape heterogeneity
+   CaBuAr's sparse chaparral is perfect use case
+
+Q: How did you validate the new labels?
+A: Three checks:
+   1. Post-fire more severe than pre-fire ✓
+   2. Distribution realistic for California ✓
+   3. Cloud/water detection consistent ✓
+
+Q: Will this transfer to NAIP?
+A: Unknown—that's Phase III
+   Model is designed for transfer (8-channel RGBN, Z-score norm)
+   Zero-shot transfer: probably good but not guaranteed
+   Fine-tuning: fallback if needed
+
+================================================================================
+CONTINGENCY PLANS
+================================================================================
+
+If Slidev won't start:
+  → Have a PDF backup (export presentation as PDF beforehand)
+  → Know your speaker notes by heart
+  → Can present from notes + static images if needed
+
+If an image doesn't load:
+  → It's okay—you have speaker notes to cover it
+  → Describe what the chart shows (loss decreases, validation improves)
+  → Confidence matters more than the visual
+
+If you lose track of time:
+  → Skip some of Slide 7 details (training strategy)
+  → Don't skip Slides 3 and 9 (insights)
+  → Q&A is important, leave at least 1 minute for it
+
+If someone asks a hard question:
+  → It's okay to say "that's a great question, let me think..."
+  → You have detailed speaker notes to draw from
+  → If you don't know the answer: "That would require more investigation"
+  → Never make up data
+
+================================================================================
+FINAL REMINDERS
+================================================================================
+
+This presentation is ready to go. Trust your preparation:
+  ✓ 457 lines of content
+  ✓ ~8,000 words (slides + notes)
+  ✓ Full speaker narrative
+  ✓ Real data (training curves)
+  ✓ Clear story arc
+  ✓ Technical depth
+  ✓ Professional design
+
+Key to success:
+  1. Know your speaker notes
+  2. Practice the pivot (Slide 3)
+  3. Speak slowly and deliberately
+  4. Let visuals breathe
+  5. Pause for impact
+  6. Deliver with confidence
+
+You've got this. The story is good, the data is real, and the insight is solid.
+
+Deliver with confidence. Data is the bottleneck, not the model. QED.
+
+================================================================================
