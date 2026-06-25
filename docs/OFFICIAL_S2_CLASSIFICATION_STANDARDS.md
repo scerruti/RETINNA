@@ -10,7 +10,7 @@
 
 **Official Website**: https://www.mtbs.gov/
 
-**MTBS Standard Classification** (based on dNBR thresholds):
+**MTBS Standard Classification (Absolute dNBR)**:
 
 | Class | dNBR Range | Description |
 |-------|-----------|-------------|
@@ -21,6 +21,13 @@
 | Extreme/Very High Severity | ≥ 0.66 | Complete consumption, terrain change |
 
 **Source**: USGS Remote Sensing Phenology Lab, adopted by USDA Forest Service nationally
+
+**Note on RdNBR for Arid Regions**: 
+For areas with sparse or heterogeneous vegetation (e.g., Southern California chaparral), use **Relativized dNBR (RdNBR)** instead:
+- **Formula**: RdNBR = dNBR / sqrt(|NBRpre|)
+- **Advantage**: Normalizes by pre-fire vegetation amount, preventing small reflectance changes in sparse vegetation from being over-classified as severe burns
+- **Thresholds** (same as dNBR, applied to RdNBR values): 0.1, 0.27, 0.44, 0.66
+- **Recommended for**: CaBuAr (California fires with mixed/sparse cover)
 
 ---
 
@@ -33,14 +40,17 @@
 - NBR = (NIR - SWIR) / (NIR + SWIR)
 - dNBR = NBRpre - NBRpost captures burn intensity
 - Thresholds validated against field observations
+- **Limitation**: dNBR is absolute and doesn't account for pre-fire vegetation amount
 
 ### 2. Miller & Thode (2007)
 **Title**: "Quantifying burn severity in a heterogeneous landscape with a relative version of the delta Normalized Burn Ratio (dNBR)"  
 **Journal**: Remote Sensing of Environment, vol. 109  
 **Key Finding**:
-- Relative dNBR = dNBR / (|NBRpre| + 0.005)
-- Normalizes for pre-fire conditions
-- Better for heterogeneous landscapes (different biomes)
+- **RdNBR (Relativized dNBR)** = dNBR / sqrt(|NBRpre|)
+- Normalizes for pre-fire vegetation conditions
+- **Better for heterogeneous and arid landscapes** (sparse vegetation, mixed cover)
+- In arid regions (e.g., Southern California), small absolute changes in sparse vegetation should not be classified as severe burns
+- RdNBR accounts for this by normalizing by pre-fire vegetation amount
 
 ---
 
