@@ -21,14 +21,22 @@
 
 ## Phase II_01: Spectral Relabeling
 
+### [PHASE_II_01_VALIDATION_RUN_20260625.md](PHASE_II_01_VALIDATION_RUN_20260625.md) ⭐ **OFFICIAL RUN RECORD**
+**Complete validation record of actual II_01 execution**
+- Processing parameters (RdNBR, thresholds, band indices)
+- Class distributions by split (Train/Val/Test pre-fire and post-fire)
+- Output file timestamps and tensor verification
+- Quality assurance checklist (all passed)
+- Downstream dependencies for Phase II_02
+- Reproducibility notes for future runs
+
 ### [PHASE_II_01_COMPLETE.md](PHASE_II_01_COMPLETE.md)
-**Detailed results and findings from spectral relabeling**
-- Objective and approach (RdNBR calibration)
-- Results by dataset split (Train/Val/Test)
-- Class distributions (showing bimodal pattern)
+**Detailed methodology documentation from spectral relabeling**
+- Objective and approach (RdNBR calibration theory)
+- Results by dataset split (showing bimodal pattern)
 - Quality control metrics
-- Files generated
 - Lessons learned
+- Note: See PHASE_II_01_VALIDATION_RUN_20260625.md for actual execution results
 
 ### [OFFICIAL_S2_CLASSIFICATION_STANDARDS.md](OFFICIAL_S2_CLASSIFICATION_STANDARDS.md)
 **USGS MTBS standards and implementation guide**
