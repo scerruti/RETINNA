@@ -14,11 +14,11 @@
 
 | Class | dNBR Range | Description |
 |-------|-----------|-------------|
-| Unburned | ≥ 0.27 | No burn impact or minimal change |
-| Low Severity | 0.05 to 0.27 | Light burn, vegetation survives |
-| Moderate Severity | -0.1 to 0.05 | Substantial vegetation loss |
-| High Severity | -0.27 to -0.1 | Severe burn, complete canopy kill |
-| Extreme Severity | < -0.27 | Complete consumption, terrain change |
+| Unburned | < 0.1 | No burn impact or minimal change |
+| Low Severity | 0.1 to 0.27 | Light burn, vegetation survives |
+| Moderate Severity | 0.27 to 0.44 | Substantial vegetation loss |
+| High Severity | 0.44 to 0.66 | Severe burn, complete canopy kill |
+| Extreme/Very High Severity | ≥ 0.66 | Complete consumption, terrain change |
 
 **Source**: USGS Remote Sensing Phenology Lab, adopted by USDA Forest Service nationally
 
