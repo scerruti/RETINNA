@@ -22,9 +22,9 @@ LOSS_CONFIG = {
         'alpha': 0.3,
         'beta': 0.7,
 
-        # FocalLoss parameters
+        # FocalLoss parameters (only used if loss_name='focal')
         # gamma: focusing parameter (higher = more focus on hard examples)
-        'gamma': 2.0,
+        # 'gamma': 2.0,
 
         # DiceLoss: no special parameters (just weight and eps)
     },
@@ -99,7 +99,12 @@ PRESETS = {
     },
     'iteration_6_tversky_recall': {
         'name': 'tversky',
-        'params': {'alpha': 0.3, 'beta': 0.7},
+        'params': {'alpha': 0.3, 'beta': 0.7},  # High FN penalty for recall
+        'use_class_weights': True,
+    },
+    'iteration_6_tversky_aggressive': {
+        'name': 'tversky',
+        'params': {'alpha': 0.2, 'beta': 0.8},  # Even higher FN penalty
         'use_class_weights': True,
     },
     'iteration_6_tversky_balanced': {
