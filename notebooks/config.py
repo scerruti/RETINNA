@@ -11,16 +11,15 @@ Modify LOSS_CONFIG to test different loss functions without regenerating the not
 
 LOSS_CONFIG = {
     # Which loss function to use: 'ce', 'dice', 'tversky', 'focal'
-    'name': 'tversky',
+    'name': 'dice',
 
     # Loss-specific hyperparameters (only used for relevant losses)
     'params': {
-        # TverskyLoss parameters
+        # TverskyLoss parameters (only used if loss_name='tversky')
         # alpha: FP penalty weight (lower = accept more false positives)
         # beta: FN penalty weight (higher = penalize false negatives more)
-        # For high recall on Extreme (recall-biased): alpha < beta
-        'alpha': 0.3,
-        'beta': 0.7,
+        # 'alpha': 0.3,
+        # 'beta': 0.7,
 
         # FocalLoss parameters (only used if loss_name='focal')
         # gamma: focusing parameter (higher = more focus on hard examples)
