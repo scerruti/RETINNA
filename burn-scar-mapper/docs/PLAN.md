@@ -16,7 +16,8 @@ _Set up 2026-11-23._
 ## M1: Get a checkpoint you can stand behind
 
 - Run the notebook and save with the cell in `scripts/`. Check that `channel_means` is on the raw-DN scale (NIR ≈ 2000–3500). If it's ≈ 0.2, the inputs were reflectance and `imagery._harmonize` must divide by 10,000.
-- **Consider splitting by fire, not by patch, when you retrain.** The notebook splits the 534 patches at random. Neighboring patches from the same fire can land in both train and test, which makes the 0.79 F1 optimistic. A fire-level split gives a number you can defend in an interview.
+- The notebook splits sequentially over sorted HDF5 keys (first 70% train, next 15% val, last 15% test), not at random. Leakage can only happen where a fire's patches straddle a split boundary. Check that when you write up results.
+- The data cell now reads only B08/B12 from HDF5 (~1.1 GB). The old version held all 12 bands two or three times over and ran out of RAM on an L4 High-RAM runtime.
 - The current notebook's markdown and `notebooks/phase3_inference.py` still say "NDVI + NIR". The trained model uses B08 + B12. The mapper follows the code, not the docs.
 
 ## M2: Validation protocol
