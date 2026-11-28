@@ -46,6 +46,9 @@ THRESHOLD = float(os.getenv("BURNMAP_THRESHOLD", "0.5"))
 # --- Paths ---
 MODEL_PATH = Path(os.getenv("BURNMAP_MODEL_PATH", "models/phase3_nir_swir.pt"))
 RESULTS_DIR = Path(os.getenv("BURNMAP_RESULTS_DIR", "outputs"))
+# Demo page. Defaults to the repo checkout; the container sets it (the package is installed
+# into site-packages, so a path relative to this file would point at the wrong place).
+WEB_DIR = Path(os.getenv("BURNMAP_WEB_DIR", Path(__file__).resolve().parents[2] / "web"))
 
 # --- Deployment ---
 # If set, finished results are published to s3://BUCKET/PREFIX<fire>/ and survive restarts;
@@ -55,6 +58,10 @@ RESULTS_PREFIX = os.getenv("BURNMAP_RESULTS_PREFIX", "results/")
 # Public-demo guard rails: new (uncached) jobs are CPU-heavy and pull GBs of imagery.
 MAX_ACTIVE_JOBS = int(os.getenv("BURNMAP_MAX_ACTIVE_JOBS", "3"))    # queued + running
 NEW_JOBS_PER_HOUR = int(os.getenv("BURNMAP_NEW_JOBS_PER_HOUR", "10"))
+# Lambda mode: both set by the CloudFormation stack. Unset = local dev (in-memory jobs, thread worker).
+JOBS_TABLE = os.getenv("BURNMAP_JOBS_TABLE", "")
+WORKER_FUNCTION = os.getenv("BURNMAP_WORKER_FUNCTION", "")
+JOB_TIMEOUT_S = int(os.getenv("BURNMAP_JOB_TIMEOUT_S", "900"))  # Lambda maximum
 # "cloudwatch" sends job metrics with PutMetricData; anything else only logs them as JSON lines.
 METRICS_BACKEND = os.getenv("BURNMAP_METRICS", "log")
 METRICS_NAMESPACE = os.getenv("BURNMAP_METRICS_NAMESPACE", "BurnScarMapper")

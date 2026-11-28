@@ -10,7 +10,7 @@ _Set up 2026-11-23._
 | M1 | Real weights: re-run Phase III in Colab with `scripts/save_checkpoint_cell.py` | **Saved** 2026-11-24 to Drive as `RETINNA_DATA/phase3_nir_swir_20261124_032554.pt` (53.7 MB). **Inspected 2026-11-28:** passes the check. Test precision 0.68, recall 0.95, IoU 0.66, F1 0.79 (it over-predicts burned area). Test set shares no fire with training. |
 | M2 | Validate on 4–6 fires; pick the threshold; choose featured fires | Borel 2024 done (2026-11-28): model IoU 0.65 (P 0.65, R 0.999) vs dNBR 0.86. Model over-predicts into dry grass and around clouds. Threshold sweep: IoU 0.92 at 0.95 (P 0.95, R 0.97), but that threshold was tuned on Borel itself; freeze it on other fires. Training used pos_weight=2.0, which pushes probabilities up. |
 | M3 | Docker build and run locally | Needs Docker Desktop running |
-| M4 | Deploy to AWS (us-west-2) with an S3 results cache | **Code done 2026-11-28:** S3 store, metrics, rate limits, `deploy/` (ECS Express Mode CloudFormation + script). Tests pass offline. Not deployed: needs Docker running, AWS CLI and credentials. |
+| M4 | Deploy to AWS (us-west-2) | **Code done 2026-11-28 (serverless):** API + worker Lambdas, DynamoDB jobs, S3 results, alarms, budget alert, `deploy/`. Tests pass offline. Not deployed: needs Docker running, AWS CLI and credentials. |
 | M5 | Polish: precomputed featured fires, README screenshot/GIF, resume link | |
 
 ## M1: Get a checkpoint you can stand behind
@@ -38,7 +38,9 @@ CaBuAr covers fires from 2015–2022. The honest test is fires the model never s
 | **Earth Search on AWS** over Planetary Computer | Same cloud and region as the deployment (us-west-2), no request signing, COGs are directly range-readable. Planetary Computer would work as a fallback. |
 | **Subtract 1000 DN when processing baseline ≥ 04.00** | Scenes from Jan 2022 onward carry a +1000 offset. CaBuAr's older scenes don't. Without this, every post-2022 input shifts by ~1 σ. Checked against Earth Search metadata (`raster:bands.offset = -0.1`, baseline 05.11). |
 | **FRAP + WFIGS** | FRAP is CAL FIRE's official record but is released once a year (currently through 2025). WFIGS covers the current year. |
-| **ECS Express Mode** over App Runner | App Runner closed to new customers on 2026-04-30 and AWS points to ECS Express Mode. Express gives one Fargate task behind a managed ALB, defined in CloudFormation. Pinned to one task because jobs are in memory. x86 because the CloudFormation resource doesn't expose CPU architecture. |
+| **Lambda, not an always-on service** | A demo with occasional visitors should cost nothing when idle. App Runner is closed to new customers (2026-04-30), and ECS Express Mode keeps a task and a load balancer running (about $90/month). The worker gets 6 vCPU at 10 GB, more than a small Fargate task. Limit: 15 minutes per run, so precompute the largest fires. |
+| **One image, two functions** | The API never imports torch, so its cold starts stay short. The worker reuses the model across warm invocations. arm64 is cheaper, and the image builds natively on Apple Silicon. |
+| **DynamoDB for jobs** | Lambda invocations share nothing in memory. On-demand billing and a TTL keep it free and self-cleaning. |
 | **Results in S3, layers via presigned redirects** | Fargate disk is ephemeral. The bucket stays private; the API checks file names, then redirects. |
 | **Cache tied to checkpoint + threshold** | Changing the threshold after the multi-fire check must not keep serving maps made with the old one. |
 | **Background jobs + polling** | A run takes minutes. That's longer than the request timeouts of App Runner, API Gateway and most proxies. |

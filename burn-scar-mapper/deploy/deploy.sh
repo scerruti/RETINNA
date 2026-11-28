@@ -5,12 +5,16 @@
 #   THRESHOLD=0.9 ALARM_EMAIL=you@example.com deploy/deploy.sh models/...  # with settings
 #
 # Needs: Docker running, AWS CLI v2 configured (aws configure / SSO) for the target account.
-# Costs (check current pricing): one always-on Fargate task (2 vCPU / 4 GB, x86) plus the
-# ECS-managed Application Load Balancer, roughly $90/month together. Park it between interviews:
-#   TASK_COUNT=0 deploy/deploy.sh models/...   (stops Fargate charges; the ALB still bills)
-# Delete the stack to stop all charges:
+#
+# Costs (check current pricing): nothing runs while idle. Each page view is one short API
+# Lambda call; each NEW fire is one worker run (10 GB for a few minutes, a few cents). Fixed
+# costs are S3 storage for results and ~1 GB of image in ECR (well under $1/month).
+# Set ALARM_EMAIL to also get a monthly budget alert (MONTHLY_BUDGET_USD, default 10).
+#
+# Tear down (stops all charges):
+#   aws s3 rm s3://<ResultsBucket> --recursive   # bucket name is in the stack outputs
 #   aws cloudformation delete-stack --stack-name burn-scar-mapper --region us-west-2
-#   (empty the results bucket first, or the delete stops at the bucket)
+#   aws ecr delete-repository --repository-name burn-scar-mapper --force --region us-west-2
 set -euo pipefail
 
 CKPT=${1:?usage: deploy/deploy.sh models/<checkpoint>.pt}
@@ -19,8 +23,10 @@ STACK=${STACK:-burn-scar-mapper}
 REPO=${REPO:-burn-scar-mapper}
 THRESHOLD=${THRESHOLD:-0.5}
 NEW_JOBS_PER_HOUR=${NEW_JOBS_PER_HOUR:-10}
+WORKER_MEMORY_MB=${WORKER_MEMORY_MB:-10240}
+WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-0}
 ALARM_EMAIL=${ALARM_EMAIL:-}
-TASK_COUNT=${TASK_COUNT:-1}
+MONTHLY_BUDGET_USD=${MONTHLY_BUDGET_USD:-10}
 
 cd "$(dirname "$0")/.."
 [[ -f "$CKPT" && "$CKPT" == models/* ]] || { echo "checkpoint must be a file under models/: $CKPT" >&2; exit 1; }
@@ -36,16 +42,18 @@ aws ecr describe-repositories --repository-names "$REPO" --region "$REGION" >/de
   aws ecr create-repository --repository-name "$REPO" --region "$REGION" \
     --image-scanning-configuration scanOnPush=true >/dev/null
 
-echo "== Build $IMAGE (linux/amd64, model $MODEL_FILE)"
+echo "== Build $IMAGE (linux/arm64, model $MODEL_FILE)"
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
-docker build --platform linux/amd64 --build-arg MODEL_FILE="$MODEL_FILE" -t "$IMAGE" .
-docker push "$IMAGE"
+# --provenance=false: Lambda rejects the multi-manifest index that attestations produce.
+docker buildx build --platform linux/arm64 --provenance=false --build-arg MODEL_FILE="$MODEL_FILE" \
+  -t "$IMAGE" --push .
 
 echo "== Deploy stack $STACK"
 aws cloudformation deploy --region "$REGION" --stack-name "$STACK" \
   --template-file deploy/cloudformation.yaml --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
-  --parameter-overrides ImageUri="$IMAGE" Threshold="$THRESHOLD" \
-    NewJobsPerHour="$NEW_JOBS_PER_HOUR" AlarmEmail="$ALARM_EMAIL" TaskCount="$TASK_COUNT"
+  --parameter-overrides ImageUri="$IMAGE" Threshold="$THRESHOLD" NewJobsPerHour="$NEW_JOBS_PER_HOUR" \
+    WorkerMemoryMB="$WORKER_MEMORY_MB" WorkerConcurrency="$WORKER_CONCURRENCY" \
+    AlarmEmail="$ALARM_EMAIL" MonthlyBudgetUSD="$MONTHLY_BUDGET_USD"
 
 aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
   --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" --output table

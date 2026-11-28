@@ -41,23 +41,33 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/uvicorn burnmap.api:app --reload   # http://localhost:8000
 ```
 
-Docker:
+Docker (the image targets AWS Lambda; for a local run, override the entrypoint to use uvicorn):
 
 ```bash
 docker build --build-arg MODEL_FILE=phase3_nir_swir_20261124_032554.pt -t burn-scar-mapper .
-docker run -p 8000:8000 -e BURNMAP_THRESHOLD=0.5 burn-scar-mapper
+docker run -p 8000:8000 --entrypoint uvicorn burn-scar-mapper burnmap.api:app --host 0.0.0.0
 ```
 
-## Deploy to AWS
+## Deploy to AWS (serverless)
 
-`deploy/deploy.sh models/<checkpoint>.pt` builds the image, pushes it to ECR, and creates or updates the CloudFormation stack in [`deploy/cloudformation.yaml`](deploy/cloudformation.yaml) (us-west-2):
+`deploy/deploy.sh models/<checkpoint>.pt` builds the arm64 image, pushes it to ECR, and creates or updates the CloudFormation stack in [`deploy/cloudformation.yaml`](deploy/cloudformation.yaml) (us-west-2). Nothing runs while nobody is using it.
 
-- **ECS Express Mode**: one Fargate task (2 vCPU / 4 GB) behind an ECS-managed load balancer, health-checked on `/api/health`. It is pinned to exactly one task because the job table lives in memory.
-- **S3** results bucket (private). Finished fires are published there, so they survive redeploys; the page gets layers through short-lived presigned redirects.
-- **Monitoring**: container logs in CloudWatch (30-day retention); custom metrics `JobSucceeded`, `JobFailed`, `JobDuration`, `CacheHit`, `RateLimited`; alarms on failed and slow jobs (optional email); and a dashboard.
-- **Guard rails**: at most 3 active jobs and 10 new (uncached) fires per hour. Cached fires are always instant.
+```
+browser ──► API Lambda (function URL) ──► DynamoDB jobs table
+               │  page, search, job status,          ▲
+               │  presigned links to S3 layers        │ status / result
+               └─ async invoke ──► worker Lambda ─────┘
+                                   (10 GB / 6 vCPU, 15 min max)
+                                   Sentinel-2 COGs ─► U-Net + dNBR ─► S3 results
+```
 
-Settings go in as environment variables: `THRESHOLD`, `NEW_JOBS_PER_HOUR`, `ALARM_EMAIL`, `TASK_COUNT=0` to park the service. A stored result is reused only if it was produced by the same checkpoint and threshold, so changing either recomputes fires on demand. Cost and teardown are noted at the top of `deploy.sh`.
+- **One image, two functions.** The API function never loads the model or imports torch, so its cold starts stay short. The worker loads the model once per cold start and maps one fire per invocation. Failed runs are reported, not retried.
+- **Results in a private S3 bucket**, served through short-lived presigned redirects. A stored result is reused only if it came from the same checkpoint and threshold.
+- **Jobs in DynamoDB** (on-demand billing, 7-day TTL). A job killed at the 15-minute limit is reported as timed out.
+- **Monitoring:** custom metrics `JobSucceeded`, `JobFailed`, `JobDuration`, `CacheHit`, `RateLimited`; alarms on failed jobs, worker crashes (timeout or out-of-memory) and API errors; a dashboard; optional email alerts and a monthly budget alert.
+- **Guard rails:** at most 3 active jobs and 10 new fires per hour (application limits), plus optional reserved concurrency on the worker as a hard cap.
+
+Settings are environment variables: `THRESHOLD`, `NEW_JOBS_PER_HOUR`, `WORKER_MEMORY_MB`, `WORKER_CONCURRENCY`, `ALARM_EMAIL`, `MONTHLY_BUDGET_USD`. Cost and teardown are noted at the top of `deploy.sh`. Very large fires (Park 2024, about 430k acres) may not finish within Lambda's 15 minutes; precompute those.
 
 ## Get the weights
 
@@ -80,7 +90,10 @@ The `unet_model_*.pt` files on Drive come from Phase II (4/8-channel inputs, 7-c
 | `src/burnmap/inference.py` | Tiled, blended sliding-window inference |
 | `src/burnmap/analysis.py` | Acreage, perimeter agreement, dNBR, vectorization |
 | `src/burnmap/pipeline.py` | End-to-end run → `outputs/<fire>/result.json` + layers |
-| `src/burnmap/api.py` | FastAPI: search, background jobs, cached results, demo page |
+| `src/burnmap/api.py` | FastAPI: search, jobs, stored results, demo page |
+| `src/burnmap/lambda_api.py`, `worker.py` | Lambda handlers: API (via Mangum) and the mapping worker |
+| `src/burnmap/jobs.py`, `storage.py`, `metrics.py` | Job records (memory / DynamoDB) and dispatch, results (disk / S3), metrics |
+| `deploy/` | CloudFormation stack and deploy script |
 | `web/index.html` | Demo page |
 | `docs/PLAN.md` | Build plan, decisions, known risks |
 
