@@ -21,7 +21,7 @@ def main(argv=None):
     r.add_argument("fire_id", help="e.g. FRAP:12345 (from `burnmap search`)")
     r.add_argument("--checkpoint", type=Path, default=config.MODEL_PATH)
     r.add_argument("--out", type=Path, default=config.RESULTS_DIR)
-    r.add_argument("--threshold", type=float, default=0.5)
+    r.add_argument("--threshold", type=float, default=config.THRESHOLD)
     r.add_argument("--device", default="cpu")
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")

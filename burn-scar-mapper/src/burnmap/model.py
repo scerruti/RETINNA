@@ -94,6 +94,7 @@ class LoadedModel:
     channel_stds: np.ndarray   # [2]
     metrics: dict = field(default_factory=dict)
     device: str = "cpu"
+    name: str = ""  # checkpoint file name; recorded in results so stale caches can be detected
 
 
 def load_checkpoint(path: str | Path, device: str = "cpu") -> LoadedModel:
@@ -120,4 +121,5 @@ def load_checkpoint(path: str | Path, device: str = "cpu") -> LoadedModel:
         channel_stds=to_np(norm["channel_stds"]),
         metrics=ckpt.get("metrics", {}),
         device=device,
+        name=Path(path).name,
     )

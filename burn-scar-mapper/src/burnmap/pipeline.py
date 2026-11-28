@@ -21,7 +21,8 @@ def _geojson(geoms, crs) -> dict:
             "features": [{"type": "Feature", "properties": {}, "geometry": mapping(to_ll(g))} for g in geoms]}
 
 
-def run(fire_id: str, model: LoadedModel, out_root: Path = config.RESULTS_DIR, threshold: float = 0.5) -> dict:
+def run(fire_id: str, model: LoadedModel, out_root: Path = config.RESULTS_DIR,
+        threshold: float = config.THRESHOLD) -> dict:
     t0 = time.time()
     out = Path(out_root) / fire_id.replace(":", "_")
     out.mkdir(parents=True, exist_ok=True)
@@ -73,7 +74,7 @@ def run(fire_id: str, model: LoadedModel, out_root: Path = config.RESULTS_DIR, t
             "pre": {"date": pre.date.isoformat(), "items": pre.item_ids, "clear_fraction": round(pre.valid_fraction, 3)},
             "post": {"date": post.date.isoformat(), "items": post.item_ids, "clear_fraction": round(post.valid_fraction, 3)},
         },
-        "model": {"threshold": threshold, **model_vs_perim.to_dict()},
+        "model": {"checkpoint": model.name, "threshold": threshold, **model_vs_perim.to_dict()},
         "dnbr_baseline": {"threshold": config.DNBR_THRESHOLD, **dnbr_vs_perim.to_dict()},
         "official_acres": round(fire.acres, 1),
         # Share of the perimeter with usable (cloud-free) post-fire pixels; acreage and

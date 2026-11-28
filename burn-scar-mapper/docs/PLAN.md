@@ -7,10 +7,10 @@ _Set up 2026-11-23._
 | | Milestone | State |
 |---|---|---|
 | M0 | Scaffold: perimeter lookup, imagery, tiled inference, metrics, API, demo page, Dockerfile, tests | **Done.** Ran end to end on the Borel Fire (2024) with random weights in 4m44s from a home connection. |
-| M1 | Real weights: re-run Phase III in Colab with `scripts/save_checkpoint_cell.py` | **Blocking.** No saved NIR+SWIR checkpoint exists. |
-| M2 | Validate on 4–6 fires; pick the threshold; choose featured fires | |
+| M1 | Real weights: re-run Phase III in Colab with `scripts/save_checkpoint_cell.py` | **Saved** 2026-11-24 to Drive as `RETINNA_DATA/phase3_nir_swir_20261124_032554.pt` (53.7 MB). **Inspected 2026-11-28:** passes the check. Test precision 0.68, recall 0.95, IoU 0.66, F1 0.79 (it over-predicts burned area). Test set shares no fire with training. |
+| M2 | Validate on 4–6 fires; pick the threshold; choose featured fires | Borel 2024 done (2026-11-28): model IoU 0.65 (P 0.65, R 0.999) vs dNBR 0.86. Model over-predicts into dry grass and around clouds. Threshold sweep: IoU 0.92 at 0.95 (P 0.95, R 0.97), but that threshold was tuned on Borel itself; freeze it on other fires. Training used pos_weight=2.0, which pushes probabilities up. |
 | M3 | Docker build and run locally | Needs Docker Desktop running |
-| M4 | Deploy to AWS (us-west-2) with an S3 results cache | |
+| M4 | Deploy to AWS (us-west-2) with an S3 results cache | **Code done 2026-11-28:** S3 store, metrics, rate limits, `deploy/` (ECS Express Mode CloudFormation + script). Tests pass offline. Not deployed: needs Docker running, AWS CLI and credentials. |
 | M5 | Polish: precomputed featured fires, README screenshot/GIF, resume link | |
 
 ## M1: Get a checkpoint you can stand behind
@@ -38,11 +38,14 @@ CaBuAr covers fires from 2015–2022. The honest test is fires the model never s
 | **Earth Search on AWS** over Planetary Computer | Same cloud and region as the deployment (us-west-2), no request signing, COGs are directly range-readable. Planetary Computer would work as a fallback. |
 | **Subtract 1000 DN when processing baseline ≥ 04.00** | Scenes from Jan 2022 onward carry a +1000 offset. CaBuAr's older scenes don't. Without this, every post-2022 input shifts by ~1 σ. Checked against Earth Search metadata (`raster:bands.offset = -0.1`, baseline 05.11). |
 | **FRAP + WFIGS** | FRAP is CAL FIRE's official record but is released once a year (currently through 2025). WFIGS covers the current year. |
+| **ECS Express Mode** over App Runner | App Runner closed to new customers on 2026-04-30 and AWS points to ECS Express Mode. Express gives one Fargate task behind a managed ALB, defined in CloudFormation. Pinned to one task because jobs are in memory. x86 because the CloudFormation resource doesn't expose CPU architecture. |
+| **Results in S3, layers via presigned redirects** | Fargate disk is ephemeral. The bucket stays private; the API checks file names, then redirects. |
+| **Cache tied to checkpoint + threshold** | Changing the threshold after the multi-fire check must not keep serving maps made with the old one. |
 | **Background jobs + polling** | A run takes minutes. That's longer than the request timeouts of App Runner, API Gateway and most proxies. |
 | **dNBR shown next to the model** | It's the standard method, it's cheap, and it gives viewers (and interviewers) a reference point. |
 | **Package lives in the RETINNA repo** | Keeps the model code and the notebook together. To publish it as a standalone portfolio repo later: `git subtree split -P burn-scar-mapper`. |
 
-## M4: Deployment sketch
+## M4: Deployment sketch (superseded: see README "Deploy to AWS" and `deploy/`)
 
 - **ECR + App Runner** (us-west-2): simplest path for one container with HTTPS. Use 2 vCPU / 4 GB.
 - App Runner disk is ephemeral. Before going public, move `RESULTS_DIR` to S3 (write `result.json` and layers on job completion; serve layers from S3/CloudFront) and keep the in-memory job table.

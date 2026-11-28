@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Burn Scar Mapper - ECS Express Mode service (one Fargate task behind an ECS-managed ALB),
+  private S3 results bucket, CloudWatch logs, job metrics, alarms and dashboard.
+  Deploy with deploy/deploy.sh. (App Runner closed to new customers on 2026-04-30;
+  AWS points to ECS Express Mode as its replacement.)
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image URI with tag, e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com/burn-scar-mapper:20261128-ab12cd3
+  Threshold:
+    Type: String
+    Default: "0.5"
+    Description: Model probability cutoff (BURNMAP_THRESHOLD). Set from the multi-fire threshold check.
+  NewJobsPerHour:
+    Type: Number
+    Default: 10
+    Description: Cap on uncached (CPU-heavy) jobs per hour for the public demo.
+  TaskCount:
+    Type: Number
+    Default: 1
+    AllowedValues: [0, 1]
+    Description: 1 = running. 0 = parked (no Fargate charges; the load balancer still bills). Never more than 1 - jobs are tracked in memory.
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Optional. Email for alarms (you must confirm the SNS subscription).
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+
+Resources:
+  ResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      # The demo page fetch()es GeoJSON through a redirect to a presigned URL, so the browser
+      # needs CORS on GET. Images (Leaflet overlays) don't, but it's harmless.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ["*"]
+            AllowedHeaders: ["*"]
+            MaxAge: 3600
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${AWS::StackName}"
+      RetentionInDays: 30
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+
+  # Used by ECS to create and update the load balancer, target group, security groups and scaling.
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices
+
+  # Used by ECS to pull the image from ECR and ship container logs to CloudWatch.
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # What the running container may do: read/write its results, publish its metrics. Nothing else.
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: burnmap-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub "${ResultsBucket.Arn}/results/*"
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ResultsBucket.Arn
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals: { "cloudwatch:namespace": BurnScarMapper }
+
+  Service:
+    Type: AWS::ECS::ExpressGatewayService
+    Properties:
+      ServiceName: !Ref AWS::StackName
+      Cluster: !Ref Cluster
+      InfrastructureRoleArn: !GetAtt InfrastructureRole.Arn
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Cpu: "2048"      # 2 vCPU
+      Memory: "4096"   # 4 GB; a 60k-acre fire peaks well under this, the 8000x8000 AOI cap is the worst case
+      HealthCheckPath: /api/health
+      # The job table is in memory: more than one task would lose jobs between polls.
+      ScalingTarget:
+        MinTaskCount: !Ref TaskCount
+        MaxTaskCount: !Ref TaskCount
+      PrimaryContainer:
+        Image: !Ref ImageUri
+        ContainerPort: 8000
+        AwsLogsConfiguration:
+          LogGroup: !Ref LogGroup
+          LogStreamPrefix: burnmap
+        Environment:
+          - { Name: BURNMAP_RESULTS_BUCKET, Value: !Ref ResultsBucket }
+          - { Name: BURNMAP_THRESHOLD, Value: !Ref Threshold }
+          - { Name: BURNMAP_NEW_JOBS_PER_HOUR, Value: !Ref NewJobsPerHour }
+          - { Name: BURNMAP_METRICS, Value: cloudwatch }
+          - { Name: AWS_DEFAULT_REGION, Value: !Ref AWS::Region }
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarmEmail
+    Properties:
+      Subscription:
+        - { Protocol: email, Endpoint: !Ref AlarmEmail }
+
+  FailedJobsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Three or more mapping jobs failed within an hour (imagery, perimeter or model errors).
+      Namespace: BurnScarMapper
+      MetricName: JobFailed
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  SlowJobsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Average job time above 15 minutes (slow STAC/COG reads or an oversized fire).
+      Namespace: BurnScarMapper
+      MetricName: JobDuration
+      Statistic: Average
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 900
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref AWS::StackName
+      DashboardBody: !Sub |
+        {"widgets": [
+          {"type": "metric", "x": 0, "y": 0, "width": 12, "height": 6, "properties": {
+            "title": "Jobs per hour", "region": "${AWS::Region}", "stat": "Sum", "period": 3600, "view": "timeSeries",
+            "metrics": [["BurnScarMapper", "JobSucceeded"], [".", "JobFailed"], [".", "CacheHit"], [".", "RateLimited"]]}},
+          {"type": "metric", "x": 12, "y": 0, "width": 12, "height": 6, "properties": {
+            "title": "Job duration (s)", "region": "${AWS::Region}", "period": 3600, "view": "timeSeries",
+            "metrics": [["BurnScarMapper", "JobDuration", {"stat": "Average"}], ["...", {"stat": "Maximum"}]]}},
+          {"type": "log", "x": 0, "y": 6, "width": 24, "height": 6, "properties": {
+            "title": "Recent errors", "region": "${AWS::Region}", "view": "table",
+            "query": "SOURCE '/ecs/${AWS::StackName}' | fields @timestamp, @message | filter @message like /ERROR|JobFailed/ | sort @timestamp desc | limit 20"}}
+        ]}
+
+Outputs:
+  ServiceEndpoint:
+    Value: !GetAtt Service.Endpoint
+  ResultsBucket:
+    Value: !Ref ResultsBucket
+  DashboardUrl:
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${AWS::StackName}"

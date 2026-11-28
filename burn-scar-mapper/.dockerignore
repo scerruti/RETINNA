@@ -5,3 +5,7 @@ tests
 docs
 *.md
 !README.md
+outputs
+models/*
+!models/*.pt
+deploy

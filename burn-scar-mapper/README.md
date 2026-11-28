@@ -44,9 +44,20 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 Docker:
 
 ```bash
-docker build -t burn-scar-mapper .
-docker run -p 8000:8000 -v $PWD/outputs:/app/outputs burn-scar-mapper
+docker build --build-arg MODEL_FILE=phase3_nir_swir_20261124_032554.pt -t burn-scar-mapper .
+docker run -p 8000:8000 -e BURNMAP_THRESHOLD=0.5 burn-scar-mapper
 ```
+
+## Deploy to AWS
+
+`deploy/deploy.sh models/<checkpoint>.pt` builds the image, pushes it to ECR, and creates or updates the CloudFormation stack in [`deploy/cloudformation.yaml`](deploy/cloudformation.yaml) (us-west-2):
+
+- **ECS Express Mode**: one Fargate task (2 vCPU / 4 GB) behind an ECS-managed load balancer, health-checked on `/api/health`. It is pinned to exactly one task because the job table lives in memory.
+- **S3** results bucket (private). Finished fires are published there, so they survive redeploys; the page gets layers through short-lived presigned redirects.
+- **Monitoring**: container logs in CloudWatch (30-day retention); custom metrics `JobSucceeded`, `JobFailed`, `JobDuration`, `CacheHit`, `RateLimited`; alarms on failed and slow jobs (optional email); and a dashboard.
+- **Guard rails**: at most 3 active jobs and 10 new (uncached) fires per hour. Cached fires are always instant.
+
+Settings go in as environment variables: `THRESHOLD`, `NEW_JOBS_PER_HOUR`, `ALARM_EMAIL`, `TASK_COUNT=0` to park the service. A stored result is reused only if it was produced by the same checkpoint and threshold, so changing either recomputes fires on demand. Cost and teardown are noted at the top of `deploy.sh`.
 
 ## Get the weights
 

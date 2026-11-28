@@ -39,6 +39,22 @@ AOI_BUFFER_M = 2000.0          # pad around the perimeter so the model sees unbu
 MAX_AOI_PIXELS = 8000 * 8000   # ~6,400 km^2; refuse anything larger
 DNBR_THRESHOLD = 0.10          # USGS "low severity" lower bound, used for the baseline map
 
+# Model probability cutoff for "burned". Training used BCE pos_weight=2.0, which inflates
+# probabilities, so 0.5 over-predicts; set this from scripts/threshold_sweep.py (multi-fire).
+THRESHOLD = float(os.getenv("BURNMAP_THRESHOLD", "0.5"))
+
 # --- Paths ---
 MODEL_PATH = Path(os.getenv("BURNMAP_MODEL_PATH", "models/phase3_nir_swir.pt"))
 RESULTS_DIR = Path(os.getenv("BURNMAP_RESULTS_DIR", "outputs"))
+
+# --- Deployment ---
+# If set, finished results are published to s3://BUCKET/PREFIX<fire>/ and survive restarts;
+# RESULTS_DIR becomes a local working copy. Unset = local disk only (dev).
+RESULTS_BUCKET = os.getenv("BURNMAP_RESULTS_BUCKET", "")
+RESULTS_PREFIX = os.getenv("BURNMAP_RESULTS_PREFIX", "results/")
+# Public-demo guard rails: new (uncached) jobs are CPU-heavy and pull GBs of imagery.
+MAX_ACTIVE_JOBS = int(os.getenv("BURNMAP_MAX_ACTIVE_JOBS", "3"))    # queued + running
+NEW_JOBS_PER_HOUR = int(os.getenv("BURNMAP_NEW_JOBS_PER_HOUR", "10"))
+# "cloudwatch" sends job metrics with PutMetricData; anything else only logs them as JSON lines.
+METRICS_BACKEND = os.getenv("BURNMAP_METRICS", "log")
+METRICS_NAMESPACE = os.getenv("BURNMAP_METRICS_NAMESPACE", "BurnScarMapper")

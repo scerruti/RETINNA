@@ -1,7 +1,10 @@
 FROM python:3.12-slim
 
+# Checkpoint file in ./models to bake into the image (weights are not in git).
+ARG MODEL_FILE=phase3_nir_swir.pt
+
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    BURNMAP_MODEL_PATH=/app/models/phase3_nir_swir.pt \
+    BURNMAP_MODEL_PATH=/app/models/${MODEL_FILE} \
     BURNMAP_RESULTS_DIR=/app/outputs \
     GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR \
     GDAL_HTTP_MULTIPLEX=YES GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES \
@@ -12,11 +15,13 @@ WORKDIR /app
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[aws]"
 COPY web ./web
 # Weights are not in git (root .gitignore excludes models/ and *.pt); put the checkpoint
 # in ./models before building. See README "Get the weights".
-COPY models ./models
+COPY models/${MODEL_FILE} ./models/${MODEL_FILE}
 
+RUN useradd --create-home app && mkdir -p /app/outputs && chown app /app/outputs
+USER app
 EXPOSE 8000
 CMD ["uvicorn", "burnmap.api:app", "--host", "0.0.0.0", "--port", "8000"]
