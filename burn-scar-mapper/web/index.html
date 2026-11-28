@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Burn Scar Mapper</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --line:#e7e5e4; --accent:#c2410c; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --line:#44403c; --card:#292524; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:16px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; } header p { margin:4px 0 0; color:var(--muted); }
+  main { display:grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 80px); }
+  aside { padding:16px; border-right:1px solid var(--line); overflow:auto; }
+  #map { min-height: 70vh; }
+  form { display:flex; gap:8px; } input { flex:1; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); }
+  button { padding:8px 12px; border:0; border-radius:6px; background:var(--accent); color:#fff; cursor:pointer; }
+  ul { list-style:none; padding:0; margin:12px 0; } li { padding:8px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; cursor:pointer; background:var(--card); }
+  li:hover { border-color:var(--accent); } .muted { color:var(--muted); font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin-top:8px; } td, th { padding:4px 6px; border-bottom:1px solid var(--line); text-align:right; } td:first-child, th:first-child { text-align:left; }
+  #status { margin:8px 0; min-height:1.4em; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Burn Scar Mapper</h1>
+  <p>Pick a California fire. A U-Net trained on CaBuAr maps the burn scar from free Sentinel-2 imagery and compares it with the official perimeter.</p>
+</header>
+<main>
+  <aside>
+    <form id="search"><input id="q" placeholder="Fire name, e.g. Park" required minlength="2"><input id="yr" type="number" placeholder="Year" style="max-width:80px"><button>Search</button></form>
+    <div id="status" class="muted"></div>
+    <ul id="fires"></ul>
+    <div id="stats"></div>
+    <h3 style="font-size:14px;margin-top:24px">Already mapped</h3>
+    <ul id="featured"></ul>
+  </aside>
+  <div id="map"></div>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([37.5, -119.5], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 16, attribution: '&copy; OpenStreetMap' }).addTo(map);
+let control = null, layers = [];
+const $ = id => document.getElementById(id);
+const fmt = (n, d=0) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+
+function fireItem(f, extra='') {
+  const li = document.createElement('li');
+  li.innerHTML = `<strong>${f.name}</strong> ${f.year} <span class="muted">${fmt(f.acres)} ac · ${f.source}${extra}</span>`;
+  li.onclick = () => startJob(f.id, f.name);
+  return li;
+}
+
+$('search').onsubmit = async e => {
+  e.preventDefault();
+  $('status').textContent = 'Searching…'; $('fires').innerHTML = '';
+  const p = new URLSearchParams({ name: $('q').value }); if ($('yr').value) p.set('year', $('yr').value);
+  const r = await fetch('/api/fires?' + p); const fires = r.ok ? await r.json() : [];
+  $('status').textContent = fires.length ? `${fires.length} fire(s) — click one to map it` : 'No fires found';
+  fires.forEach(f => $('fires').appendChild(fireItem(f)));
+};
+
+async function startJob(id, name) {
+  $('status').textContent = `Starting ${name}…`;
+  const r = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fire_id: id }) });
+  let job = await r.json();
+  if (!r.ok) { $('status').textContent = job.detail || 'Failed'; return; }
+  const t0 = Date.now();
+  while (job.status === 'queued' || job.status === 'running') {
+    $('status').textContent = `${name}: ${job.status} (${Math.round((Date.now()-t0)/1000)} s) — downloading imagery and running the model`;
+    await new Promise(res => setTimeout(res, 3000));
+    job = await (await fetch('/api/jobs/' + job.id)).json();
+  }
+  if (job.status === 'error') { $('status').textContent = job.error; return; }
+  $('status').textContent = `${name}: done${job.cached ? ' (cached)' : ''}`;
+  show(job.result);
+}
+
+async function show(res) {
+  layers.forEach(l => map.removeLayer(l)); layers = []; if (control) map.removeControl(control);
+  const dir = '/results/' + res.fire.id.replace(':', '_') + '/';
+  const [w, s, e, n] = res.grid.bounds_4326, b = [[s, w], [n, e]];
+  const img = (k, o=1) => L.imageOverlay(dir + res.layers[k], b, { opacity: o });
+  const post = img('post_false_color'), pre = img('pre_false_color'), model = img('model_burn', .8), dnbr = img('dnbr_burn', .8);
+  const perim = L.geoJSON(await (await fetch(dir + 'perimeter.geojson')).json(), { style: { color: '#22d3ee', weight: 2, fill: false } });
+  [post, model, perim].forEach(l => l.addTo(map)); layers = [post, pre, model, dnbr, perim];
+  control = L.control.layers({ [`Post-fire ${res.scenes.post.date}`]: post, [`Pre-fire ${res.scenes.pre.date}`]: pre },
+    { 'Model burn map': model, 'dNBR baseline': dnbr, 'Official perimeter': perim }, { collapsed: false }).addTo(map);
+  map.fitBounds(b);
+  const m = res.model, d = res.dnbr_baseline;
+  $('stats').innerHTML = `<h3 style="font-size:16px">${res.fire.name} (${res.fire.year})</h3>
+    <table><tr><th></th><th>U-Net</th><th>dNBR</th></tr>
+    <tr><td>Burned acres</td><td>${fmt(m.predicted_acres)}</td><td>${fmt(d.predicted_acres)}</td></tr>
+    <tr><td>IoU vs perimeter</td><td>${m.iou.toFixed(2)}</td><td>${d.iou.toFixed(2)}</td></tr>
+    <tr><td>Precision</td><td>${m.precision.toFixed(2)}</td><td>${d.precision.toFixed(2)}</td></tr>
+    <tr><td>Recall</td><td>${m.recall.toFixed(2)}</td><td>${d.recall.toFixed(2)}</td></tr></table>
+    <p class="muted">Official: ${fmt(res.official_acres)} ac (${res.fire.source}). Perimeter acres on clear pixels: ${fmt(m.perimeter_acres)} (${Math.round(100*res.perimeter_clear_fraction)}% of perimeter cloud-free).
+    Perimeters include unburned islands, so recall &lt; 1 is expected even for a perfect map.</p>`;
+}
+
+fetch('/api/featured').then(r => r.json()).then(fs => fs.forEach(f => $('featured').appendChild(fireItem(f, ` · F1 ${f.model_f1.toFixed(2)}`)))).catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Burn Scar Mapper - serverless. API Lambda behind a public function URL (serves the demo page
+  and JSON API), worker Lambda that maps one fire per async invocation, DynamoDB job table,
+  private S3 results bucket, CloudWatch alarms and dashboard. Idle cost is near zero.
+  Deploy with deploy/deploy.sh.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image URI with tag (arm64), e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com/burn-scar-mapper:20261128-ab12cd3
+  Threshold:
+    Type: String
+    Default: "0.5"
+    Description: Model probability cutoff (BURNMAP_THRESHOLD). Set from the multi-fire threshold check.
+  NewJobsPerHour:
+    Type: Number
+    Default: 10
+    Description: Cap on uncached (CPU-heavy) jobs per hour for the public demo.
+  WorkerMemoryMB:
+    Type: Number
+    Default: 10240
+    MinValue: 3008
+    MaxValue: 10240
+    Description: Worker memory; Lambda gives CPU in proportion (10240 MB = 6 vCPU). New accounts may be capped at 3008 until AWS raises the quota.
+  WorkerConcurrency:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: Reserved concurrency for the worker (hard cap on simultaneous runs). 0 = don't reserve; new accounts with a 10-execution limit can't reserve any.
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Optional. Email for alarms and a monthly budget alert (confirm the SNS/Budgets emails).
+  MonthlyBudgetUSD:
+    Type: Number
+    Default: 10
+    Description: Budget alert threshold (only created when AlarmEmail is set).
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+  ReserveWorker: !Not [!Equals [!Ref WorkerConcurrency, 0]]
+
+Resources:
+  ResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      # The demo page fetch()es GeoJSON through a redirect to a presigned URL, so the browser
+      # needs CORS on GET. Images (Leaflet overlays) don't, but it's harmless.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ["*"]
+            AllowedHeaders: ["*"]
+            MaxAge: 3600
+
+  JobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{ AttributeName: id, AttributeType: S }]
+      KeySchema: [{ AttributeName: id, KeyType: HASH }]
+      TimeToLiveSpecification: { AttributeName: ttl, Enabled: true }
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-api"
+      RetentionInDays: 30
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-worker"
+      RetentionInDays: 30
+
+  # The API reads results (and presigns links to them), records jobs, and starts the worker.
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: burnmap-api
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${ResultsBucket.Arn}/results/*"
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ResultsBucket.Arn
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:Scan]
+                Resource: !GetAtt JobsTable.Arn
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-worker"
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals: { "cloudwatch:namespace": BurnScarMapper }
+
+  # The worker writes results and updates its job record. Nothing else.
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: burnmap-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub "${ResultsBucket.Arn}/results/*"
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:UpdateItem]
+                Resource: !GetAtt JobsTable.Arn
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals: { "cloudwatch:namespace": BurnScarMapper }
+
+  WorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: WorkerLogGroup
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-worker"
+      Description: Maps one fire (imagery download, U-Net, dNBR, layers) per async invocation.
+      PackageType: Image
+      Code: { ImageUri: !Ref ImageUri }
+      ImageConfig: { Command: ["burnmap.worker.handler"] }
+      Architectures: [arm64]
+      Role: !GetAtt WorkerRole.Arn
+      MemorySize: !Ref WorkerMemoryMB
+      Timeout: 900
+      EphemeralStorage: { Size: 4096 }
+      ReservedConcurrentExecutions: !If [ReserveWorker, !Ref WorkerConcurrency, !Ref AWS::NoValue]
+      Environment:
+        Variables:
+          BURNMAP_RESULTS_BUCKET: !Ref ResultsBucket
+          BURNMAP_JOBS_TABLE: !Ref JobsTable
+          BURNMAP_THRESHOLD: !Ref Threshold
+          BURNMAP_METRICS: cloudwatch
+
+  # A failed run is reported, not retried (each run pulls GBs of imagery); stale events are dropped.
+  WorkerInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref WorkerFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 3600
+
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ApiLogGroup
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-api"
+      Description: Demo page and JSON API (no model loaded here).
+      PackageType: Image
+      Code: { ImageUri: !Ref ImageUri }
+      Architectures: [arm64]
+      Role: !GetAtt ApiRole.Arn
+      MemorySize: 1024
+      Timeout: 30
+      Environment:
+        Variables:
+          BURNMAP_RESULTS_BUCKET: !Ref ResultsBucket
+          BURNMAP_JOBS_TABLE: !Ref JobsTable
+          BURNMAP_WORKER_FUNCTION: !Sub "${AWS::StackName}-worker"
+          BURNMAP_THRESHOLD: !Ref Threshold
+          BURNMAP_NEW_JOBS_PER_HOUR: !Ref NewJobsPerHour
+          BURNMAP_METRICS: cloudwatch
+
+  ApiUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt ApiFunction.Arn
+      AuthType: NONE
+
+  # Public function URLs need both permissions.
+  ApiUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarmEmail
+    Properties:
+      Subscription:
+        - { Protocol: email, Endpoint: !Ref AlarmEmail }
+
+  FailedJobsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Three or more mapping jobs failed within an hour (imagery, perimeter or model errors).
+      Namespace: BurnScarMapper
+      MetricName: JobFailed
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  # The worker catches its own exceptions, so a Lambda-level error means a timeout or out-of-memory.
+  WorkerCrashAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Worker Lambda hit its time or memory limit.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref WorkerFunction }]
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  ApiErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: API Lambda errors (5 or more in 5 minutes).
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref ApiFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref AWS::NoValue]
+
+  Budget:
+    Type: AWS::Budgets::Budget
+    Condition: HasAlarmEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-monthly"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: { Amount: !Ref MonthlyBudgetUSD, Unit: USD }
+      NotificationsWithSubscribers:
+        - Notification: { NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 80, ThresholdType: PERCENTAGE }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref AlarmEmail }]
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref AWS::StackName
+      DashboardBody: !Sub |
+        {"widgets": [
+          {"type": "metric", "x": 0, "y": 0, "width": 12, "height": 6, "properties": {
+            "title": "Jobs per hour", "region": "${AWS::Region}", "stat": "Sum", "period": 3600, "view": "timeSeries",
+            "metrics": [["BurnScarMapper", "JobSucceeded"], [".", "JobFailed"], [".", "CacheHit"], [".", "RateLimited"]]}},
+          {"type": "metric", "x": 12, "y": 0, "width": 12, "height": 6, "properties": {
+            "title": "Job duration (s)", "region": "${AWS::Region}", "period": 3600, "view": "timeSeries",
+            "metrics": [["BurnScarMapper", "JobDuration", {"stat": "Average"}], ["...", {"stat": "Maximum"}]]}},
+          {"type": "metric", "x": 0, "y": 6, "width": 12, "height": 6, "properties": {
+            "title": "Lambda invocations / errors", "region": "${AWS::Region}", "stat": "Sum", "period": 3600, "view": "timeSeries",
+            "metrics": [["AWS/Lambda", "Invocations", "FunctionName", "${ApiFunction}"], ["...", "${WorkerFunction}"],
+                        [".", "Errors", ".", "${ApiFunction}"], ["...", "${WorkerFunction}"]]}},
+          {"type": "log", "x": 12, "y": 6, "width": 12, "height": 6, "properties": {
+            "title": "Recent errors", "region": "${AWS::Region}", "view": "table",
+            "query": "SOURCE '/aws/lambda/${AWS::StackName}-api' | SOURCE '/aws/lambda/${AWS::StackName}-worker' | fields @timestamp, @log, @message | filter @message like /ERROR|JobFailed|Task timed out/ | sort @timestamp desc | limit 20"}}
+        ]}
+
+Outputs:
+  ServiceUrl:
+    Value: !GetAtt ApiUrl.FunctionUrl
+  ResultsBucket:
+    Value: !Ref ResultsBucket
+  JobsTable:
+    Value: !Ref JobsTable
+  DashboardUrl:
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${AWS::StackName}"
